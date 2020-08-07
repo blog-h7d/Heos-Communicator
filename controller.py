@@ -46,7 +46,7 @@ async def main():
 
 @app.route('/devices/')
 async def get_devices():
-    return json.dumps(found_heos_devices)
+    return json.dumps(found_heos_devices), 200, {'Content-Type': 'application/json; charset=utf-8'}
 
 
 if __name__ == "__main__":

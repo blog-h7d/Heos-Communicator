@@ -46,7 +46,7 @@ jobs:
         pip install pytest
         pip install pytest-cov
         pip install pytest-asyncio
-        pytest --cov-config=.coveragerc --cov-report html --cov=.
+        pytest -m "not device_needed" --cov-config=.coveragerc --cov-report html --cov=.
     - name: Fetching testcoverage results
       uses: actions/upload-artifact@v1
       with:
