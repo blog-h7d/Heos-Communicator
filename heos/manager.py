@@ -18,10 +18,10 @@ class HeosDevice:
 class HeosDeviceManager:
 
     def __init__(self):
-        self._all_devices: typing.dict[str, HeosDevice] = dict()
+        self._all_devices: typing.Dict[str, HeosDevice] = dict()
 
     @staticmethod
-    def _send_telnet_message(ip, command: str) -> str:
+    def _send_telnet_message(ip, command: bytes) -> dict:
         tn = telnetlib.Telnet(ip, 1255)
         tn.write(command + b"\n")
         message = b''
@@ -36,7 +36,7 @@ class HeosDeviceManager:
                 except UnicodeDecodeError:
                     pass
 
-    def _scan_for_devices(self, list_of_ips) -> HeosDevice:
+    def _scan_for_devices(self, list_of_ips):
         for ip in list_of_ips:
             data = self._send_telnet_message(ip, b"heos://player/get_players")
             for device in data["payload"]:
@@ -44,3 +44,8 @@ class HeosDeviceManager:
                     new_device = HeosDevice(device)
                     self._all_devices[device["pid"]] = new_device
 
+    def get_all_devices(self, list_of_ips) -> typing.List[HeosDevice]:
+        if not self._all_devices:
+            self._scan_for_devices(list_of_ips)
+
+        return list(self._all_devices.values())
