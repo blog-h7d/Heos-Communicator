@@ -20,7 +20,9 @@ async def test_ping():
     device = HeosDevice(heos_data)
     assert device.number_of_pings == 0
     await device.start_watcher()
-    await asyncio.sleep(3)
+    await asyncio.sleep(10)
+    assert device.number_of_pings == 1
+    await asyncio.sleep(52)
     assert device.number_of_pings == 2
     await device.stop_watcher()
 

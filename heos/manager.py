@@ -1,5 +1,6 @@
 import asyncio
 import json
+import re
 import telnetlib
 import typing
 
@@ -15,32 +16,41 @@ class HeosDevice:
         self.network = data["network"]
         self.serial = data["serial"]
         self.number_of_pings = 0
-        self.__task = None
+        self.play_state = 'stop'
+        self.__tasks = list()
 
     async def start_watcher(self):
         loop = asyncio.get_event_loop()
-        self.__task = loop.create_task(self._ping_in_loop())
+        self.__tasks.append(loop.create_task(self._ping_in_loop()))
+        self.__tasks.append(loop.create_task(self._update_status_in_loop()))
 
     async def stop_watcher(self):
-        self.__task.cancel()
-        try:
-            await self.__task
-        except asyncio.CancelledError:
-            pass
-        except RuntimeError:
-            pass
+        for task in self.__tasks:  # type: asyncio.Task
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+            self.__tasks.remove(task)
 
     async def _ping_in_loop(self):
         while True:
             await self._ping()
-            await asyncio.sleep(2)
+            await asyncio.sleep(60)
 
     async def _ping(self):
         await self._send_telnet_message(b'heos://system/heart_beat')
         self.number_of_pings += 1
 
-    async def update_status(self):
-        pass
+    async def _update_status_in_loop(self):
+        while True:
+            successful, message, payload = await self._send_telnet_message(
+                b'heos://player/get_play_state?pid=' + str(self.pid).encode())
+            if successful:
+                self.play_state = re.search("(?<=&state=)[a-z]+", message).group(0)
+
+            await asyncio.sleep(30)
 
     async def _send_telnet_message(self, command: bytes) -> (bool, str, dict):
         data = await HeosDeviceManager.send_telnet_message(self.ip, command)
@@ -65,20 +75,20 @@ class HeosDeviceManager:
         if ip not in HeosDeviceManager._locks:
             HeosDeviceManager._locks[ip] = asyncio.Lock()
 
-        #        async with HeosDeviceManager._locks[ip]:
-        tn = telnetlib.Telnet(ip, 1255)
-        tn.write(command + b"\n")
-        message = b''
-        while True:
-            message += tn.read_some()
-            if message:
-                try:
-                    data = json.loads(message.decode('utf-8'))
-                    return data
-                except json.JSONDecodeError:
-                    pass
-                except UnicodeDecodeError:
-                    pass
+        async with HeosDeviceManager._locks[ip]:
+            tn = telnetlib.Telnet(ip, 1255)
+            tn.write(command + b"\n")
+            message = b''
+            while True:
+                message += tn.read_some()
+                if message:
+                    try:
+                        data = json.loads(message.decode('utf-8'))
+                        return data
+                    except json.JSONDecodeError:
+                        pass
+                    except UnicodeDecodeError:
+                        pass
 
     async def _scan_for_devices(self, list_of_ips):
         for ip in list_of_ips:
