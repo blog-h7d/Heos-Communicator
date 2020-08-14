@@ -13,9 +13,21 @@ found_heos_devices = list()
 heos_manager: heos.manager.HeosDeviceManager = heos.manager.HeosDeviceManager()
 
 
-@app.before_first_request
+@app.before_serving
 async def _start_server():
+    loop = asyncio.get_event_loop()
+    loop.create_task(scan_for_devices(1))
+    loop.create_task(scan_for_devices(2))
     await asyncio.sleep(1)
+
+
+@app.after_serving
+async def _shut_down():
+    global heos_manager
+    for device in heos_manager.get_all_devices():
+        await device.stop_watcher()
+
+    await asyncio.sleep(2)
 
 
 async def scan_for_devices(timeout):
@@ -26,25 +38,26 @@ async def scan_for_devices(timeout):
     found_ips = list()
     for device in devices:
         if b"urn:schemas-denon-com:device:AiosServices:1" in device.description:
-            append_device = {
-                'name': device.friendly_name,
-                'host': device.host,
-                'port': device.port,
-                'type': device.type_,
-                'base_url': device.base_url,
-                'services': []
-            }
-            found_ips.append(device.host)
-            for service in device.get_services():
-                append_device['services'].append(
-                    {
-                        'service': service.service,
-                        'type': service.type_,
-                        'version': service.version,
-                        'base_url': service.base_url,
-                        'control_url': service.control_url
-                    })
-            found_heos_devices.append(append_device)
+            if not any(heos_dev['name'] == device.friendly_name for heos_dev in found_heos_devices):
+                append_device = {
+                    'name': device.friendly_name,
+                    'host': device.host,
+                    'port': device.port,
+                    'type': device.type_,
+                    'base_url': device.base_url,
+                    'services': []
+                }
+                found_ips.append(device.host)
+                for service in device.get_services():
+                    append_device['services'].append(
+                        {
+                            'service': service.service,
+                            'type': service.type_,
+                            'version': service.version,
+                            'base_url': service.base_url,
+                            'control_url': service.control_url
+                        })
+                found_heos_devices.append(append_device)
     global heos_manager
     await heos_manager.initialize(found_ips)
 
@@ -64,7 +77,10 @@ async def get_devices():
 
 
 def convert_to_dict(obj):
-    obj_dict = obj.__dict__
+    obj_dict = dict()
+    for key, value in obj.__dict__.items():
+        if not key.startswith("_"):
+            obj_dict[key] = value
     return obj_dict
 
 
@@ -75,7 +91,4 @@ async def get_heos_devices():
 
 
 if __name__ == "__main__":
-    asyncio.run(scan_for_devices(1))
-    asyncio.run(scan_for_devices(2))
-
     app.run(host='0.0.0.0', debug=True)
