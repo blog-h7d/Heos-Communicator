@@ -1,21 +1,29 @@
+import asyncio
 import json
 
 import quart
 import upnpy
 
+import heos.manager
+
 app = quart.Quart("HEOS Communication Server")
 app.secret_key = "HeosCommunication_ChangeThisKeyForInstallation"
 
 found_heos_devices = list()
+heos_manager: heos.manager.HeosDeviceManager = heos.manager.HeosDeviceManager()
 
 
 @app.before_first_request
-async def scan_for_devices():
+async def _start_server():
+    await asyncio.sleep(1)
+
+
+async def scan_for_devices(timeout):
     global found_heos_devices
-    found_heos_devices = list()
 
     upnp = upnpy.UPnP()
-    devices = upnp.discover()
+    devices = upnp.discover(delay=timeout)
+    found_ips = list()
     for device in devices:
         if b"urn:schemas-denon-com:device:AiosServices:1" in device.description:
             append_device = {
@@ -26,6 +34,7 @@ async def scan_for_devices():
                 'base_url': device.base_url,
                 'services': []
             }
+            found_ips.append(device.host)
             for service in device.get_services():
                 append_device['services'].append(
                     {
@@ -36,8 +45,8 @@ async def scan_for_devices():
                         'control_url': service.control_url
                     })
             found_heos_devices.append(append_device)
-
-    return found_heos_devices
+    global heos_manager
+    await heos_manager.initialize(found_ips)
 
 
 @app.route('/')
@@ -50,16 +59,23 @@ async def main():
 
 @app.route('/devices/')
 async def get_devices():
+    global found_heos_devices
     return json.dumps(found_heos_devices), 200, {'Content-Type': 'application/json; charset=utf-8'}
 
 
+def convert_to_dict(obj):
+    obj_dict = obj.__dict__
+    return obj_dict
 
 
 @app.route('/heos_devices/')
 async def get_heos_devices():
-    result = []
-    return json.dumps(result), 200, {'Content-Type': 'application/json; charset=utf-8'}
+    result = heos_manager.get_all_devices()
+    return json.dumps(result, default=convert_to_dict), 200, {'Content-Type': 'application/json; charset=utf-8'}
 
 
 if __name__ == "__main__":
+    asyncio.run(scan_for_devices(1))
+    asyncio.run(scan_for_devices(2))
+
     app.run(host='0.0.0.0', debug=True)

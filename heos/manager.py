@@ -1,3 +1,4 @@
+import asyncio
 import json
 import telnetlib
 import typing
@@ -6,13 +7,29 @@ import typing
 class HeosDevice:
 
     def __init__(self, data: dict):
-        self._pid = data["pid"]
-        self._name = data["name"]
-        self._model = data["model"]
-        self._version = data["version"]
-        self._ip = data["ip"]
-        self._network = data["network"]
-        self._serial = data["serial"]
+        self.pid = data["pid"]
+        self.name = data["name"]
+        self.model = data["model"]
+        self.version = data["version"]
+        self.ip = data["ip"]
+        self.network = data["network"]
+        self.serial = data["serial"]
+
+    async def _ping(self):
+        while True:
+            await asyncio.sleep(5)
+            await self._send_telnet_message(b'heos://system/heart_beat')
+
+    async def update_status(self):
+        pass
+
+    async def _send_telnet_message(self, command: bytes) -> (bool, str, dict):
+        data = await HeosDeviceManager.send_telnet_message(self._ip, command)
+        successful = data["result"] == 'success'
+        if "payload" in data:
+            return successful, data["message"], data["payload"]
+        else:
+            return successful, data["message"], {}
 
 
 class HeosDeviceManager:
@@ -20,8 +37,11 @@ class HeosDeviceManager:
     def __init__(self):
         self._all_devices: typing.Dict[str, HeosDevice] = dict()
 
+    async def initialize(self, list_of_ips):
+        await self._scan_for_devices(list_of_ips)
+
     @staticmethod
-    def _send_telnet_message(ip, command: bytes) -> dict:
+    async def send_telnet_message(ip, command: bytes) -> dict:
         tn = telnetlib.Telnet(ip, 1255)
         tn.write(command + b"\n")
         message = b''
@@ -36,16 +56,16 @@ class HeosDeviceManager:
                 except UnicodeDecodeError:
                     pass
 
-    def _scan_for_devices(self, list_of_ips):
+    async def _scan_for_devices(self, list_of_ips):
         for ip in list_of_ips:
-            data = self._send_telnet_message(ip, b"heos://player/get_players")
+            data = await self.send_telnet_message(ip, b"heos://player/get_players")
             for device in data["payload"]:
                 if not device["pid"] in self._all_devices:
                     new_device = HeosDevice(device)
                     self._all_devices[device["pid"]] = new_device
 
-    def get_all_devices(self, list_of_ips) -> typing.List[HeosDevice]:
+    def get_all_devices(self) -> typing.List[HeosDevice]:
         if not self._all_devices:
-            self._scan_for_devices(list_of_ips)
+            return list()
 
         return list(self._all_devices.values())
