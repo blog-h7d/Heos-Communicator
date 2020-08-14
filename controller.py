@@ -27,13 +27,14 @@ async def scan_for_devices():
                 'services': []
             }
             for service in device.get_services():
-                append_device['services'].append({
-                    'service': service.service,
-                    'type': service.type_,
-                    'version': service.version,
-                    'base_url': service.base_url,
-                    'control_url': service.control_url
-                })
+                append_device['services'].append(
+                    {
+                        'service': service.service,
+                        'type': service.type_,
+                        'version': service.version,
+                        'base_url': service.base_url,
+                        'control_url': service.control_url
+                    })
             found_heos_devices.append(append_device)
 
     return found_heos_devices
@@ -41,12 +42,23 @@ async def scan_for_devices():
 
 @app.route('/')
 async def main():
-    return f'Hello World'
+    return json.dumps({
+        'network_devices': quart.request.url_root + "devices/",
+        'heos-devices': quart.request.url_root + "heos_devices/",
+    }), 200, {'Content-Type': 'application/json; charset=utf-8'}
 
 
 @app.route('/devices/')
 async def get_devices():
     return json.dumps(found_heos_devices), 200, {'Content-Type': 'application/json; charset=utf-8'}
+
+
+
+
+@app.route('/heos_devices/')
+async def get_heos_devices():
+    result = []
+    return json.dumps(result), 200, {'Content-Type': 'application/json; charset=utf-8'}
 
 
 if __name__ == "__main__":
