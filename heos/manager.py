@@ -15,6 +15,9 @@ class HeosDevice:
         self.network = data["network"]
         self.serial = data["serial"]
 
+        loop = asyncio.get_event_loop()
+        loop.create_task(self._ping())
+
     async def _ping(self):
         while True:
             await asyncio.sleep(5)
@@ -33,6 +36,7 @@ class HeosDevice:
 
 
 class HeosDeviceManager:
+    _locks: typing.Dict[str, asyncio.Lock] = dict()
 
     def __init__(self):
         self._all_devices: typing.Dict[str, HeosDevice] = dict()
@@ -42,19 +46,23 @@ class HeosDeviceManager:
 
     @staticmethod
     async def send_telnet_message(ip, command: bytes) -> dict:
-        tn = telnetlib.Telnet(ip, 1255)
-        tn.write(command + b"\n")
-        message = b''
-        while True:
-            message += tn.read_some()
-            if message:
-                try:
-                    data = json.loads(message.decode('utf-8'))
-                    return data
-                except json.JSONDecodeError:
-                    pass
-                except UnicodeDecodeError:
-                    pass
+        if ip not in HeosDeviceManager._locks:
+            HeosDeviceManager._locks[ip] = asyncio.Lock()
+
+        async with HeosDeviceManager._locks[ip]:
+            tn = telnetlib.Telnet(ip, 1255)
+            tn.write(command + b"\n")
+            message = b''
+            while True:
+                message += tn.read_some()
+                if message:
+                    try:
+                        data = json.loads(message.decode('utf-8'))
+                        return data
+                    except json.JSONDecodeError:
+                        pass
+                    except UnicodeDecodeError:
+                        pass
 
     async def _scan_for_devices(self, list_of_ips):
         for ip in list_of_ips:
