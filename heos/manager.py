@@ -105,7 +105,6 @@ class HeosDevice:
         if successful:
             self.repeat = re.search("(?<=&repeat=)[a-z_]+", message).group(0)
 
-
     @HeosEventCallback('repeat_mode_changed', ['repeat', ])
     async def update_repeat_mode(self, repeat):
         self.repeat = repeat
@@ -185,7 +184,6 @@ class HeosDeviceManager:
         command = b'heos://system/register_for_change_events?enable=on'
         self.event_telnet_connection.write(command + b"\n")
         await self._filter_response_for_event()
-        print("Initialization finished")
 
         loop = asyncio.get_event_loop()
         loop.create_task(self._watch_events())
@@ -194,9 +192,7 @@ class HeosDeviceManager:
         self.watch_enabled = False
 
     async def _watch_events(self):
-
         heos_functions = self.get_heos_decorators()
-        print(heos_functions)
 
         while self.watch_enabled:
             response = await self._filter_response_for_event()
