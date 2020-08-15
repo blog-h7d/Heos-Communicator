@@ -17,9 +17,10 @@ def client():
 
 @pytest.mark.asyncio
 @pytest.mark.device_needed
+@pytest.mark.timeout(10)
 async def test_scan_for_devices():
-    found = await controller.scan_for_devices()
-    assert found
+    await controller.scan_for_devices(2)
+    assert controller.found_heos_devices
 
 
 @pytest.mark.asyncio
