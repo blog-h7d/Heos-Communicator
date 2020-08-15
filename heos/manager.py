@@ -32,6 +32,7 @@ class HeosDevice:
         self.number_of_pings = 0
         self.play_state = 'stop'
         self.volume = 0
+        self.now_playing = dict()
         self.__tasks = list()
 
     async def start_watcher(self):
@@ -40,6 +41,7 @@ class HeosDevice:
 
         await self.update_status()
         await self.update_volume()
+        await self.update_now_playing()
 
     async def stop_watcher(self):
         for task in self.__tasks:  # type: asyncio.Task
@@ -74,6 +76,20 @@ class HeosDevice:
             b'heos://player//get_volume?pid=' + str(self.pid).encode())
         if successful:
             self.volume = re.search("(?<=&level=)[0-9]+", message).group(0)
+
+
+    @HeosEventCallback('player_now_playing_changed')
+    async def update_now_playing(self):
+        successful, message, payload = await self._send_telnet_message(
+            b'heos://player//get_now_playing_media?pid=' + str(self.pid).encode())
+        if successful:
+            self.now_playing = payload
+
+
+    @HeosEventCallback('player_now_playing_progress', ['cur_pos', 'duration'])
+    async def update_now_playing_progress(self, cur_pos, duration):
+        self.now_playing["cur_pos"] = cur_pos
+        self.now_playing["duration"] = duration
 
 
     async def _send_telnet_message(self, command: bytes) -> (bool, str, dict):
@@ -179,7 +195,7 @@ class HeosDeviceManager:
                         pid = int(re.search("(?<=pid=)-?[a-z0-9]+", message).group(0))
                         if pid and pid in self._all_devices:
 
-                            param_list = ()
+                            param_list = list()
                             for param in func[0]["params"]:
                                 value = re.search("(?<="+param+"=)[a-z0-9]+", message).group(0)
                                 param_list.append(value)
