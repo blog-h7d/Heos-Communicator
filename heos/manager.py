@@ -203,7 +203,6 @@ class HeosDeviceManager:
             command = response["heos"]["command"]  # type:str
             if command.startswith("event/"):
                 event = command[6:]
-                print(event)
                 message = ""
                 if "message" in response["heos"]:
                     message = response["heos"]["message"]
@@ -218,7 +217,6 @@ class HeosDeviceManager:
                                 value = re.search("(?<=" + param + "=)[a-z0-9_]+", message).group(0)
                                 param_list.append(value)
 
-                            print("call " + name)
                             func = getattr(self._all_devices[int(pid)], name)
                             await func(*param_list)
 
