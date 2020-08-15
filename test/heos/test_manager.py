@@ -15,6 +15,7 @@ heos_data = {
 }
 
 
+@pytest.mark.device_needed
 @pytest.mark.asyncio
 async def test_ping():
     device = HeosDevice(heos_data)
