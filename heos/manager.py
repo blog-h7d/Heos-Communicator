@@ -31,6 +31,7 @@ class HeosDevice:
         self.serial = data["serial"]
         self.number_of_pings = 0
         self.play_state = 'stop'
+        self.volume = 0
         self.__tasks = list()
 
     async def start_watcher(self):
@@ -38,6 +39,7 @@ class HeosDevice:
         self.__tasks.append(loop.create_task(self._ping_in_loop()))
 
         await self.update_status()
+        await self.update_volume()
 
     async def stop_watcher(self):
         for task in self.__tasks:  # type: asyncio.Task
@@ -64,6 +66,15 @@ class HeosDevice:
             b'heos://player/get_play_state?pid=' + str(self.pid).encode())
         if successful:
             self.play_state = re.search("(?<=&state=)[a-z]+", message).group(0)
+
+
+    @HeosEventCallback('player_volume_changed')
+    async def update_volume(self):
+        successful, message, payload = await self._send_telnet_message(
+            b'heos://player//get_volume?pid=' + str(self.pid).encode())
+        if successful:
+            self.volume = re.search("(?<=&level=)[0-9]+", message).group(0)
+
 
     async def _send_telnet_message(self, command: bytes) -> (bool, str, dict):
         data = await HeosDeviceManager.send_telnet_message(self.ip, command)
