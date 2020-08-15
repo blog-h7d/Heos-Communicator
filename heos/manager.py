@@ -1,8 +1,22 @@
+import ast
 import asyncio
+import inspect
 import json
 import re
 import telnetlib
 import typing
+
+
+class HeosEventCallback:
+    def __init__(self, name: str, param_names: dict = []):
+        self.name = name
+        self.param_names = param_names
+
+    def __call__(self, func, *args, **kwargs):
+        def new_func(*args, **kwargs):
+            return func(*args, **kwargs)
+
+        return new_func
 
 
 class HeosDevice:
@@ -18,7 +32,6 @@ class HeosDevice:
         self.number_of_pings = 0
         self.play_state = 'stop'
         self.__tasks = list()
-
 
     async def start_watcher(self):
         loop = asyncio.get_event_loop()
@@ -45,6 +58,7 @@ class HeosDevice:
         await self._send_telnet_message(b'heos://system/heart_beat')
         self.number_of_pings += 1
 
+    @HeosEventCallback('player_state_changed')
     async def update_status(self):
         successful, message, payload = await self._send_telnet_message(
             b'heos://player/get_play_state?pid=' + str(self.pid).encode())
@@ -131,7 +145,6 @@ class HeosDeviceManager:
         loop = asyncio.get_event_loop()
         loop.create_task(self._watch_events())
 
-
     async def stop_watch_events(self):
         self.watch_enabled = False
 
@@ -145,13 +158,47 @@ class HeosDeviceManager:
                 message = ""
                 if "message" in response["heos"]:
                     message = response["heos"]["message"]
-                    print(message)
                 if event == 'player_state_changed':
-                    pid = re.search("(?<=pid=)-?[a-z0-9]+", message).group(0)
-                    if pid and int(pid) in self._all_devices:
+                    pid = int(re.search("(?<=pid=)-?[a-z0-9]+", message).group(0))
+                    if pid and pid in self._all_devices:
                         await self._all_devices[int(pid)].update_status()
+                elif event == 'player_now_playing_changed':
+                    pass
 
             await asyncio.sleep(0.1)
+
+    @staticmethod
+    def get_heos_decorators(cls=HeosDevice):
+        target = cls
+        decorators = {}
+
+        def visit_FunctionDef(node):
+            decorators[node.name] = []
+            for n in node.decorator_list:
+                name = ''
+                if isinstance(n, ast.Call):
+                    name = n.func.attr if isinstance(n.func, ast.Attribute) else n.func.id
+                if name in ('HeosEventCallback',):
+                    params = list()
+                    if len(n.args) == 2:
+                        for val in n.args[1].elts:
+                            params.append(val.value)
+
+
+                    decorators[node.name].append({
+                        "name": name,
+                        "event": n.args[0].value,
+                        "params": params
+                    })
+
+            if not decorators[node.name]:
+                decorators.pop(node.name)
+
+        node_iter = ast.NodeVisitor()
+        node_iter.visit_FunctionDef = visit_FunctionDef
+        node_iter.visit(ast.parse(inspect.getsource(target)))
+
+        return decorators
 
     def get_all_devices(self) -> typing.List[HeosDevice]:
         if not self._all_devices:

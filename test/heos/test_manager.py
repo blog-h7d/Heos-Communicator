@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from heos.manager import HeosDeviceManager, HeosDevice
+from heos.manager import HeosDeviceManager, HeosDevice, HeosEventCallback
 
 heos_data = {
     "pid": "123",
@@ -34,3 +34,32 @@ async def test_scan_devices():
     await heos_manager.initialize(["192.168.178.20", ])
     assert heos_manager._all_devices
 
+
+class A:
+
+    @staticmethod
+    @HeosEventCallback('test_event_2711')
+    def test():
+        pass
+
+    @staticmethod
+    def test2():
+        pass
+
+    @HeosEventCallback('test3_update', ['a', 'b'])
+    def test3(self):
+        pass
+
+
+def test_get_heos_decorators():
+    data = HeosDeviceManager.get_heos_decorators(A)
+    print(data)
+    assert "test" in data
+    assert data["test"][0]["name"] == "HeosEventCallback"
+    assert data["test"][0]["event"] == "test_event_2711"
+    assert "test2" not in data
+    assert "test3" in data
+    assert data["test3"][0]["name"] == "HeosEventCallback"
+    assert data["test3"][0]["event"] == "test3_update"
+    assert "a" in data["test3"][0]["params"]
+    assert "b" in data["test3"][0]["params"]
