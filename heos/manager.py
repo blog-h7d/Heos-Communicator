@@ -149,6 +149,10 @@ class HeosDeviceManager:
         self.watch_enabled = False
 
     async def _watch_events(self):
+
+        heos_functions = self.get_heos_decorators()
+        print(heos_functions)
+
         while self.watch_enabled:
             response = await self._filter_response_for_event()
             command = response["heos"]["command"]  # type:str
@@ -158,12 +162,20 @@ class HeosDeviceManager:
                 message = ""
                 if "message" in response["heos"]:
                     message = response["heos"]["message"]
-                if event == 'player_state_changed':
-                    pid = int(re.search("(?<=pid=)-?[a-z0-9]+", message).group(0))
-                    if pid and pid in self._all_devices:
-                        await self._all_devices[int(pid)].update_status()
-                elif event == 'player_now_playing_changed':
-                    pass
+
+                for name, func in heos_functions.items():
+                    if func[0]["event"] == event:
+                        pid = int(re.search("(?<=pid=)-?[a-z0-9]+", message).group(0))
+                        if pid and pid in self._all_devices:
+
+                            param_list = ()
+                            for param in func[0]["params"]:
+                                value = re.search("(?<="+param+"=)[a-z0-9]+", message).group(0)
+                                param_list.append(value)
+
+                            print("call " + name)
+                            func = getattr(self._all_devices[int(pid)], name)
+                            await func(*param_list)
 
             await asyncio.sleep(0.1)
 
@@ -195,7 +207,7 @@ class HeosDeviceManager:
                 decorators.pop(node.name)
 
         node_iter = ast.NodeVisitor()
-        node_iter.visit_FunctionDef = visit_FunctionDef
+        node_iter.visit_AsyncFunctionDef = visit_FunctionDef
         node_iter.visit(ast.parse(inspect.getsource(target)))
 
         return decorators

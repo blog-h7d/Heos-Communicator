@@ -39,15 +39,15 @@ class A:
 
     @staticmethod
     @HeosEventCallback('test_event_2711')
-    def test():
+    async def test():
         pass
 
     @staticmethod
-    def test2():
+    async def test2():
         pass
 
     @HeosEventCallback('test3_update', ['a', 'b'])
-    def test3(self):
+    async def test3(self):
         pass
 
 
@@ -63,3 +63,8 @@ def test_get_heos_decorators():
     assert data["test3"][0]["event"] == "test3_update"
     assert "a" in data["test3"][0]["params"]
     assert "b" in data["test3"][0]["params"]
+
+
+def test_get_heos_decorators2():
+    data = HeosDeviceManager.get_heos_decorators()
+    print(data)
