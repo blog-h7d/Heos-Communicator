@@ -8,7 +8,7 @@ import typing
 class HeosDevice:
 
     def __init__(self, data: dict):
-        self.pid = data["pid"]
+        self.pid = int(data["pid"])
         self.name = data["name"]
         self.model = data["model"]
         self.version = data["version"]
@@ -19,10 +19,12 @@ class HeosDevice:
         self.play_state = 'stop'
         self.__tasks = list()
 
+
     async def start_watcher(self):
         loop = asyncio.get_event_loop()
         self.__tasks.append(loop.create_task(self._ping_in_loop()))
-        self.__tasks.append(loop.create_task(self._update_status_in_loop()))
+
+        await self.update_status()
 
     async def stop_watcher(self):
         for task in self.__tasks:  # type: asyncio.Task
@@ -43,14 +45,11 @@ class HeosDevice:
         await self._send_telnet_message(b'heos://system/heart_beat')
         self.number_of_pings += 1
 
-    async def _update_status_in_loop(self):
-        while True:
-            successful, message, payload = await self._send_telnet_message(
-                b'heos://player/get_play_state?pid=' + str(self.pid).encode())
-            if successful:
-                self.play_state = re.search("(?<=&state=)[a-z]+", message).group(0)
-
-            await asyncio.sleep(30)
+    async def update_status(self):
+        successful, message, payload = await self._send_telnet_message(
+            b'heos://player/get_play_state?pid=' + str(self.pid).encode())
+        if successful:
+            self.play_state = re.search("(?<=&state=)[a-z]+", message).group(0)
 
     async def _send_telnet_message(self, command: bytes) -> (bool, str, dict):
         data = await HeosDeviceManager.send_telnet_message(self.ip, command)
@@ -66,6 +65,8 @@ class HeosDeviceManager:
 
     def __init__(self):
         self._all_devices: typing.Dict[str, HeosDevice] = dict()
+        self.watch_enabled = False
+        self.event_telnet_connection: telnetlib.Telnet
 
     async def initialize(self, list_of_ips):
         await self._scan_for_devices(list_of_ips)
@@ -96,8 +97,61 @@ class HeosDeviceManager:
             for device in data["payload"]:
                 if not device["pid"] in self._all_devices:
                     new_device = HeosDevice(device)
-                    self._all_devices[device["pid"]] = new_device
+                    self._all_devices[new_device.pid] = new_device
                     await new_device.start_watcher()
+
+    async def _filter_response_for_event(self) -> dict:
+        tn = self.event_telnet_connection
+        message = b''
+        while True:
+            message += tn.read_until(b'}', 0.1)
+            if message:
+                try:
+                    data = json.loads(message.decode('utf-8'))
+                    return data
+                except json.JSONDecodeError:
+                    pass
+                except UnicodeDecodeError:
+                    pass
+            await asyncio.sleep(0.1)
+
+    async def start_watch_events(self):
+        if not self._all_devices or self.watch_enabled:
+            return
+
+        self.watch_enabled = True
+
+        ip = self.get_all_devices()[0].ip
+        self.event_telnet_connection = telnetlib.Telnet(ip, 1255)
+        command = b'heos://system/register_for_change_events?enable=on'
+        self.event_telnet_connection.write(command + b"\n")
+        await self._filter_response_for_event()
+        print("Initialization finished")
+
+        loop = asyncio.get_event_loop()
+        loop.create_task(self._watch_events())
+
+
+    async def stop_watch_events(self):
+        self.watch_enabled = False
+
+    async def _watch_events(self):
+        while self.watch_enabled:
+            response = await self._filter_response_for_event()
+            command = response["heos"]["command"]  # type:str
+            if command.startswith("event/"):
+                event = command[6:]
+                print(event)
+                message = ""
+                if "message" in response["heos"]:
+                    message = response["heos"]["message"]
+                    print(message)
+                if event == 'player_state_changed':
+                    pid = re.search("(?<=pid=)-?[a-z0-9]+", message).group(0)
+                    if pid and int(pid) in self._all_devices:
+                        await self._all_devices[int(pid)].update_status()
+
+            await asyncio.sleep(0.1)
 
     def get_all_devices(self) -> typing.List[HeosDevice]:
         if not self._all_devices:

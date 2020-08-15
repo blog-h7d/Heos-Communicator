@@ -10,20 +10,24 @@ app = quart.Quart("HEOS Communication Server")
 app.secret_key = "HeosCommunication_ChangeThisKeyForInstallation"
 
 found_heos_devices = list()
-heos_manager: heos.manager.HeosDeviceManager = heos.manager.HeosDeviceManager()
+heos_manager: heos.manager.HeosDeviceManager
 
 
 @app.before_serving
 async def _start_server():
+    global heos_manager
+    heos_manager = heos.manager.HeosDeviceManager()
+
     loop = asyncio.get_event_loop()
     loop.create_task(scan_for_devices(1))
-    loop.create_task(scan_for_devices(2))
     await asyncio.sleep(1)
 
 
 @app.after_serving
 async def _shut_down():
     global heos_manager
+    await heos_manager.stop_watch_events()
+
     for device in heos_manager.get_all_devices():
         await device.stop_watcher()
 
@@ -60,6 +64,7 @@ async def scan_for_devices(timeout):
                 found_heos_devices.append(append_device)
     global heos_manager
     await heos_manager.initialize(found_ips)
+    await heos_manager.start_watch_events()
 
 
 @app.route('/')
@@ -91,4 +96,4 @@ async def get_heos_devices():
 
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', debug=True)
+    app.run(host='0.0.0.0', debug=False)
