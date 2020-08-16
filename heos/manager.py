@@ -32,6 +32,8 @@ class HeosDevice:
         self.number_of_pings = 0
         self.play_state = 'stop'
         self.volume = 0
+        self.mute = "off"
+        self.repeat = "off"
         self.now_playing = dict()
         self.__tasks = list()
 
@@ -40,7 +42,7 @@ class HeosDevice:
         self.__tasks.append(loop.create_task(self._ping_in_loop()))
 
         await self.update_status()
-        await self.update_volume()
+        await self.update_volume_force()
         await self.update_now_playing()
 
     async def stop_watcher(self):
@@ -69,14 +71,21 @@ class HeosDevice:
         if successful:
             self.play_state = re.search("(?<=&state=)[a-z]+", message).group(0)
 
-
-    @HeosEventCallback('player_volume_changed')
-    async def update_volume(self):
+    async def update_volume_force(self):
         successful, message, payload = await self._send_telnet_message(
-            b'heos://player//get_volume?pid=' + str(self.pid).encode())
+            b'heos://player/get_volume?pid=' + str(self.pid).encode())
         if successful:
             self.volume = re.search("(?<=&level=)[0-9]+", message).group(0)
 
+        successful, message, payload = await self._send_telnet_message(
+            b'heos://player/get_mute?pid=' + str(self.pid).encode())
+        if successful:
+            self.mute = re.search("(?<=&state=)[a-z]+", message).group(0)
+
+    @HeosEventCallback('player_volume_changed', ['level', 'mute'])
+    async def update_volume(self, level, mute):
+        self.volume = level
+        self.mute = mute
 
     @HeosEventCallback('player_now_playing_changed')
     async def update_now_playing(self):
@@ -85,12 +94,20 @@ class HeosDevice:
         if successful:
             self.now_playing = payload
 
-
     @HeosEventCallback('player_now_playing_progress', ['cur_pos', 'duration'])
     async def update_now_playing_progress(self, cur_pos, duration):
         self.now_playing["cur_pos"] = cur_pos
         self.now_playing["duration"] = duration
 
+    async def update_repeat_mode_force(self):
+        successful, message, payload = await self._send_telnet_message(
+            b'heos://player//get_play_mode?pid=' + str(self.pid).encode())
+        if successful:
+            self.repeat = re.search("(?<=&repeat=)[a-z_]+", message).group(0)
+
+    @HeosEventCallback('repeat_mode_changed', ['repeat', ])
+    async def update_repeat_mode(self, repeat):
+        self.repeat = repeat
 
     async def _send_telnet_message(self, command: bytes) -> (bool, str, dict):
         data = await HeosDeviceManager.send_telnet_message(self.ip, command)
@@ -167,7 +184,6 @@ class HeosDeviceManager:
         command = b'heos://system/register_for_change_events?enable=on'
         self.event_telnet_connection.write(command + b"\n")
         await self._filter_response_for_event()
-        print("Initialization finished")
 
         loop = asyncio.get_event_loop()
         loop.create_task(self._watch_events())
@@ -176,16 +192,13 @@ class HeosDeviceManager:
         self.watch_enabled = False
 
     async def _watch_events(self):
-
         heos_functions = self.get_heos_decorators()
-        print(heos_functions)
 
         while self.watch_enabled:
             response = await self._filter_response_for_event()
             command = response["heos"]["command"]  # type:str
             if command.startswith("event/"):
                 event = command[6:]
-                print(event)
                 message = ""
                 if "message" in response["heos"]:
                     message = response["heos"]["message"]
@@ -197,10 +210,9 @@ class HeosDeviceManager:
 
                             param_list = list()
                             for param in func[0]["params"]:
-                                value = re.search("(?<="+param+"=)[a-z0-9]+", message).group(0)
+                                value = re.search("(?<=" + param + "=)[a-z0-9_]+", message).group(0)
                                 param_list.append(value)
 
-                            print("call " + name)
                             func = getattr(self._all_devices[int(pid)], name)
                             await func(*param_list)
 
@@ -222,7 +234,6 @@ class HeosDeviceManager:
                     if len(n.args) == 2:
                         for val in n.args[1].elts:
                             params.append(val.value)
-
 
                     decorators[node.name].append({
                         "name": name,
