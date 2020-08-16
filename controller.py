@@ -96,6 +96,12 @@ async def get_heos_devices():
     return json.dumps(result, default=convert_to_dict), 200, {'Content-Type': 'application/json; charset=utf-8'}
 
 
+@app.route('/heos_device/<name>/')
+async def get_heos_device(name):
+    result = heos_manager.get_device_by_name(name)
+    return json.dumps(result, default=convert_to_dict), 200, {'Content-Type': 'application/json; charset=utf-8'}
+
+
 @app.route('/event_test/')
 async def get_events_dummy_template():
     return await quart.render_template('events_dummy.html')
