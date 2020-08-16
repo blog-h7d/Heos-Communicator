@@ -10,7 +10,7 @@ app = quart.Quart("HEOS Communication Server")
 app.secret_key = "HeosCommunication_ChangeThisKeyForInstallation"
 
 found_heos_devices = list()
-heos_manager: heos.manager.HeosDeviceManager
+heos_manager: heos.manager.HeosDeviceManager = None
 
 
 @app.before_serving
@@ -63,8 +63,9 @@ async def scan_for_devices(timeout):
                         })
                 found_heos_devices.append(append_device)
     global heos_manager
-    await heos_manager.initialize(found_ips)
-    await heos_manager.start_watch_events()
+    if heos_manager:
+        await heos_manager.initialize(found_ips)
+        await heos_manager.start_watch_events()
 
 
 @app.route('/')
