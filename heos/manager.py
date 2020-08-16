@@ -118,6 +118,25 @@ class HeosDevice:
             return successful, data["heos"]["message"], {}
 
 
+class ServerHeosEvent:
+    def __init__(self, data, event: str = 'event', identifier: int = 1, retry: int = 1):
+        self.data = data
+        self.event = event
+        self.id = identifier
+        self.retry = retry
+
+    def encode(self) -> bytes:
+        message = f"Event: {self.event}"
+        message += f"\ndata: {self.data}"
+        #message += f"\nid: {self.id}"
+        #message += f"\nretry: {self.retry}"
+        message += "\n\n"
+        return message.encode('utf-8')
+
+
+data_queue: typing.List[ServerHeosEvent] = list()
+
+
 class HeosDeviceManager:
     _locks: typing.Dict[str, asyncio.Lock] = dict()
 
@@ -202,6 +221,8 @@ class HeosDeviceManager:
                 message = ""
                 if "message" in response["heos"]:
                     message = response["heos"]["message"]
+                global data_queue
+                data_queue.append(ServerHeosEvent(command, event))
 
                 for name, func in heos_functions.items():
                     if func[0]["event"] == event:

@@ -72,6 +72,7 @@ async def main():
     return json.dumps({
         'network_devices': quart.request.url_root + "devices/",
         'heos-devices': quart.request.url_root + "heos_devices/",
+        'heos_events': quart.request.url_root + "heos_events/"
     }), 200, {'Content-Type': 'application/json; charset=utf-8'}
 
 
@@ -93,6 +94,34 @@ def convert_to_dict(obj):
 async def get_heos_devices():
     result = heos_manager.get_all_devices()
     return json.dumps(result, default=convert_to_dict), 200, {'Content-Type': 'application/json; charset=utf-8'}
+
+
+@app.route('/event_test/')
+async def get_events_dummy_template():
+    return await quart.render_template('events_dummy.html')
+
+
+@app.route('/heos_events/')
+async def get_heos_event_stream():
+    async def send_events():
+        while True:
+            if len(heos.manager.data_queue) > 0:
+                event = heos.manager.data_queue.pop(0)
+                yield event.encode()
+
+            await asyncio.sleep(0.3)
+
+    response = await quart.make_response(
+        send_events(),
+        {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Expires': -1,
+            'Transfer-Encoding': 'chunked',
+        },
+    )
+    response.timeout = None  # No timeout for this route
+    return response
 
 
 if __name__ == "__main__":
