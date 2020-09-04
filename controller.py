@@ -4,6 +4,7 @@ import json
 import quart
 import upnpy
 
+import heos
 import heos.manager
 
 app = quart.Quart("HEOS Communication Server")
@@ -34,7 +35,7 @@ async def _shut_down():
     await asyncio.sleep(2)
 
 
-async def scan_for_devices(timeout):
+async def scan_for_devices(timeout=2):
     global found_heos_devices
 
     upnp = upnpy.UPnP()
@@ -73,7 +74,7 @@ async def main():
     return json.dumps({
         'network_devices': quart.request.url_root + "devices/",
         'heos-devices': quart.request.url_root + "heos_devices/",
-        'heos_events': quart.request.url_root + "heos_events/"
+        'heos-events-page': quart.request.url_root + "event_test/"
     }), 200, {'Content-Type': 'application/json; charset=utf-8'}
 
 
@@ -110,10 +111,12 @@ async def get_events_dummy_template():
 
 @app.route('/heos_events/')
 async def get_heos_event_stream():
+    event_queue = heos.EventQueueManager.get_queue()
+
     async def send_events():
         while True:
-            if len(heos.manager.data_queue) > 0:
-                event = heos.manager.data_queue.pop(0)
+            if not event_queue.empty():
+                event = await event_queue.get()
                 yield event.encode()
 
             await asyncio.sleep(0.3)
