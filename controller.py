@@ -7,7 +7,7 @@ import upnpy
 import heos
 import heos.manager
 
-app = quart.Quart("HEOS Communication Server")
+app = quart.Quart("HEOS Communication Server", static_url_path='')
 app.secret_key = "HeosCommunication_ChangeThisKeyForInstallation"
 
 found_heos_devices = list()
@@ -71,6 +71,11 @@ async def scan_for_devices(timeout=2):
 
 @app.route('/')
 async def main():
+    return await app.send_static_file('index.html')
+
+
+@app.route('/api/')
+async def get_api():
     return json.dumps({
         'network_devices': quart.request.url_root + "devices/",
         'heos-devices': quart.request.url_root + "heos_devices/",

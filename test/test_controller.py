@@ -1,12 +1,12 @@
-import pytest
 import json
+
+import pytest
 import quart
 import quart.flask_patch
 import quart.testing
 
 import controller
 from controller import app as app_for_testing
-import heos.manager
 
 
 @pytest.fixture
@@ -33,6 +33,20 @@ async def test_main_page_simple(client):
 
     data = await response.get_data()
     assert data
+
+
+@pytest.mark.asyncio
+async def test_api_page_simple(client):
+    response: quart.wrappers.Response
+
+    response = await client.get('/api/')
+    assert response.status_code == 200
+
+    data = await response.get_data()
+    assert data
+    json_data = json.loads(data)
+    assert json_data
+    assert 'network_devices' in json_data
 
 
 @pytest.mark.asyncio
