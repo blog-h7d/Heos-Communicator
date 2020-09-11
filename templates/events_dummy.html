@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+
+<body>
+<h1>Liste der aktuellen Events</h1>
+<ul id="event-list">
+</ul>
+
+<script type="text/javascript">
+    var es = new EventSource('http://localhost:5000/heos_events/');
+    es.onmessage = function (event) {
+        text = document.createTextNode(event.data)
+
+        node = document.createElement("li");
+        node.appendChild(text)
+
+        eventlist = document.getElementById('event-list');
+        eventlist.appendChild(node)
+
+        console.info("EventSource successful:", event);
+        console.log(event.data)
+    };
+    es.onerror = function(err) {
+        console.error("EventSource failed:", err);
+        console.log(err.data)
+        es.close();
+    };
+</script>
+
+</body>
+</html>

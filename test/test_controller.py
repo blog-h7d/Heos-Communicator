@@ -6,6 +6,7 @@ import quart.testing
 
 import controller
 from controller import app as app_for_testing
+import heos.manager
 
 
 @pytest.fixture
@@ -17,7 +18,7 @@ def client():
 
 @pytest.mark.asyncio
 @pytest.mark.device_needed
-@pytest.mark.timeout(10)
+@pytest.mark.timeout(20)
 async def test_scan_for_devices():
     await controller.scan_for_devices(2)
     assert controller.found_heos_devices

@@ -4,13 +4,14 @@ import json
 import quart
 import upnpy
 
+import heos
 import heos.manager
 
 app = quart.Quart("HEOS Communication Server")
 app.secret_key = "HeosCommunication_ChangeThisKeyForInstallation"
 
 found_heos_devices = list()
-heos_manager: heos.manager.HeosDeviceManager
+heos_manager: heos.manager.HeosDeviceManager = None
 
 
 @app.before_serving
@@ -34,7 +35,7 @@ async def _shut_down():
     await asyncio.sleep(2)
 
 
-async def scan_for_devices(timeout):
+async def scan_for_devices(timeout=2):
     global found_heos_devices
 
     upnp = upnpy.UPnP()
@@ -63,8 +64,9 @@ async def scan_for_devices(timeout):
                         })
                 found_heos_devices.append(append_device)
     global heos_manager
-    await heos_manager.initialize(found_ips)
-    await heos_manager.start_watch_events()
+    if heos_manager:
+        await heos_manager.initialize(found_ips)
+        await heos_manager.start_watch_events()
 
 
 @app.route('/')
@@ -72,6 +74,7 @@ async def main():
     return json.dumps({
         'network_devices': quart.request.url_root + "devices/",
         'heos-devices': quart.request.url_root + "heos_devices/",
+        'heos-events-page': quart.request.url_root + "event_test/"
     }), 200, {'Content-Type': 'application/json; charset=utf-8'}
 
 
@@ -93,6 +96,42 @@ def convert_to_dict(obj):
 async def get_heos_devices():
     result = heos_manager.get_all_devices()
     return json.dumps(result, default=convert_to_dict), 200, {'Content-Type': 'application/json; charset=utf-8'}
+
+
+@app.route('/heos_device/<name>/')
+async def get_heos_device(name):
+    result = heos_manager.get_device_by_name(name)
+    return json.dumps(result, default=convert_to_dict), 200, {'Content-Type': 'application/json; charset=utf-8'}
+
+
+@app.route('/event_test/')
+async def get_events_dummy_template():
+    return await quart.render_template('events_dummy.html')
+
+
+@app.route('/heos_events/')
+async def get_heos_event_stream():
+    event_queue = heos.EventQueueManager.get_queue()
+
+    async def send_events():
+        while True:
+            if not event_queue.empty():
+                event = await event_queue.get()
+                yield event.encode()
+
+            await asyncio.sleep(0.3)
+
+    response = await quart.make_response(
+        send_events(),
+        {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Expires': -1,
+            'Transfer-Encoding': 'chunked',
+        },
+    )
+    response.timeout = None  # No timeout for this route
+    return response
 
 
 if __name__ == "__main__":

@@ -6,6 +6,8 @@ import re
 import telnetlib
 import typing
 
+import heos
+
 
 class HeosEventCallback:
     def __init__(self, name: str, param_names: dict = []):
@@ -29,7 +31,6 @@ class HeosDevice:
         self.ip = data["ip"]
         self.network = data["network"]
         self.serial = data["serial"]
-        self.number_of_pings = 0
         self.play_state = 'stop'
         self.volume = 0
         self.mute = "off"
@@ -39,7 +40,6 @@ class HeosDevice:
 
     async def start_watcher(self):
         loop = asyncio.get_event_loop()
-        self.__tasks.append(loop.create_task(self._ping_in_loop()))
 
         await self.update_status()
         await self.update_volume_force()
@@ -55,14 +55,8 @@ class HeosDevice:
 
             self.__tasks.remove(task)
 
-    async def _ping_in_loop(self):
-        while True:
-            await self._ping()
-            await asyncio.sleep(60)
-
     async def _ping(self):
         await self._send_telnet_message(b'heos://system/heart_beat')
-        self.number_of_pings += 1
 
     @HeosEventCallback('player_state_changed')
     async def update_status(self):
@@ -203,6 +197,13 @@ class HeosDeviceManager:
                 if "message" in response["heos"]:
                     message = response["heos"]["message"]
 
+                heos.EventQueueManager.add_event(heos.ServerHeosEvent({
+                    "command": command,
+                    "event": event,
+                    "message":message,
+                    "full": response
+                }))
+
                 for name, func in heos_functions.items():
                     if func[0]["event"] == event:
                         pid = int(re.search("(?<=pid=)-?[a-z0-9]+", message).group(0))
@@ -255,3 +256,8 @@ class HeosDeviceManager:
             return list()
 
         return list(self._all_devices.values())
+
+    def get_device_by_name(self, name) -> HeosDevice:
+        for device in self._all_devices.values():  # type: HeosDevice
+            if device.name == name:
+                return device
