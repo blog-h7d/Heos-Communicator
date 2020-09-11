@@ -77,9 +77,9 @@ async def main():
 @app.route('/api/')
 async def get_api():
     return json.dumps({
-        'network_devices': quart.request.url_root + "devices/",
-        'heos-devices': quart.request.url_root + "heos_devices/",
-        'heos-events-page': quart.request.url_root + "event_test/"
+        'network_devices': quart.request.url_root[:-4] + "devices/",
+        'heos-devices': quart.request.url_root[:-4] + "heos_devices/",
+        'heos-events-page': quart.request.url_root[:-4] + "event_test/"
     }), 200, {'Content-Type': 'application/json; charset=utf-8'}
 
 

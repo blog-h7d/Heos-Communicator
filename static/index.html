@@ -2,9 +2,29 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Title</title>
+    <title>RichClient for Heos Communicator</title>
+    <script type="text/javascript" src="https://code.jquery.com/jquery-2.1.0.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+
+    <link rel="stylesheet" href="index.css">
+    <script type="text/javascript" src="main.js"></script>
+
 </head>
 <body>
-Hallo Welt
+<div  id="heosapp">
+    <div id="header">
+        <div v-for="device in devices">
+            <div class="heos_device_selector">
+                {{device.name}}
+            </div>
+        </div>
+    </div>
+    <div id="body">
+
+    </div>
+    <div id="footer">
+
+    </div>
+</div>
 </body>
 </html>
