@@ -23,7 +23,7 @@ class HeosEventCallback:
 
 class HeosDevice:
 
-    def __init__(self, data: dict, doUpdate = True):
+    def __init__(self, data: dict, doUpdate=True):
         self.pid = int(data["pid"])
         self.name = data["name"]
         self.model = data["model"]
@@ -67,8 +67,14 @@ class HeosDevice:
 
         return successful
 
-    async def set_volume(self, volume):
-        pass
+    async def set_volume(self, volume: int):
+        successful, _, _ = await self._send_telnet_message(
+            b'heos://player/set_volume?pid=' + str(self.pid).encode() + b'&level=' + str(volume).encode())
+
+        if successful:
+            self.volume = volume
+
+        return successful
 
     @HeosEventCallback('player_state_changed')
     async def update_status(self):

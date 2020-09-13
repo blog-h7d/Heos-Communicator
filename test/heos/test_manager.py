@@ -35,20 +35,61 @@ async def test_ping(monkeypatch, heos_device):
 
 
 @pytest.mark.asyncio
-async def test_set_play_state(monkeypatch, heos_device):
+@pytest.mark.parametrize("play_state", ["play", "pause", "stop"])
+async def test_set_play_state(monkeypatch, heos_device, play_state: str):
+    has_run = False
+    heos_device.play_state = ''
+
     async def mock_telnet(ip, command):
-        assert command == b'heos://player/set_play_state?pid=1234&state=play'
+        nonlocal play_state
+        assert command == b'heos://player/set_play_state?pid=1234&state=' + play_state.encode()
+
+        nonlocal has_run
+        has_run = True
+
         return {
             "heos": {
                 "command": "player/set_play_state",
                 "result": "success",
-                "message": "pid=1234&state=play"
+                "message": "pid=1234&state=" + play_state
             }
         }
 
     monkeypatch.setattr(HeosDeviceManager, "send_telnet_message", mock_telnet)
 
-    assert await heos_device.set_play_state('play')
+    assert await heos_device.set_play_state(play_state)
+    assert has_run
+    assert heos_device.play_state == play_state
+
+
+@pytest.mark.asyncio
+async def test_set_play_state_invalid(monkeypatch, heos_device):
+    assert not await heos_device.set_play_state('playing')
+    assert not await heos_device.set_play_state('')
+
+
+@pytest.mark.asyncio
+async def test_set_volume(monkeypatch, heos_device):
+    has_run = False
+    heos_device.volume = 0
+
+    async def mock_telnet(ip, command):
+        assert command == b'heos://player/set_volume?pid=1234&level=78'
+        nonlocal has_run
+        has_run = True
+        return {
+            "heos": {
+                "command": "player/set_volume",
+                "result": "success",
+                "message": "pid=1234&level=78"
+            }
+        }
+
+    monkeypatch.setattr(HeosDeviceManager, "send_telnet_message", mock_telnet)
+
+    assert await heos_device.set_volume(78)
+    assert has_run
+    assert heos_device.volume == 78
 
 
 @pytest.mark.device_needed
