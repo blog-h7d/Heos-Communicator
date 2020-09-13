@@ -1,18 +1,54 @@
-import asyncio
-
 import pytest
 
-from heos.manager import HeosDeviceManager, HeosDevice, HeosEventCallback
+from heos.manager import HeosDevice, HeosDeviceManager, HeosEventCallback
 
-heos_data = {
-    "pid": "123",
-    "name": "test",
-    "model": "AVR1",
-    "version": "1",
-    "ip": "192.168.178.20",
-    "network": "wifi",
-    "serial": "ABC1",
-}
+
+@pytest.fixture
+def heos_device():
+    device = HeosDevice({
+        'pid': '1234',
+        'name': 'MockDevice',
+        'model': 'mock',
+        'version': '0.1',
+        'ip': '127.0.0.1',
+        'network': 'wlan',
+        'serial': '1234567890',
+    }, doUpdate=False)
+    yield device
+
+
+@pytest.mark.asyncio
+async def test_ping(monkeypatch, heos_device):
+    async def mock_telnet(ip, command):
+        assert command == b'heos://system/heart_beat'
+        return {
+            "heos": {
+                "command": "system/heart_beat ",
+                "result": "success",
+                "message": ""
+            }
+        }
+
+    monkeypatch.setattr(HeosDeviceManager, "send_telnet_message", mock_telnet)
+
+    assert await heos_device._ping()
+
+
+@pytest.mark.asyncio
+async def test_set_play_state(monkeypatch, heos_device):
+    async def mock_telnet(ip, command):
+        assert command == b'heos://player/set_play_state?pid=1234&state=play'
+        return {
+            "heos": {
+                "command": "player/set_play_state",
+                "result": "success",
+                "message": "pid=1234&state=play"
+            }
+        }
+
+    monkeypatch.setattr(HeosDeviceManager, "send_telnet_message", mock_telnet)
+
+    assert await heos_device.set_play_state('play')
 
 
 @pytest.mark.device_needed

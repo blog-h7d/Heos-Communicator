@@ -109,6 +109,11 @@ async def get_heos_device(name):
     return json.dumps(result, default=convert_to_dict), 200, {'Content-Type': 'application/json; charset=utf-8'}
 
 
+@app.route('/send_command/<name>/<command>/')
+async def send_heos_command(name, command):
+    device = heos_manager.get_device_by_name(name)
+
+
 @app.route('/event_test/')
 async def get_events_dummy_template():
     return await quart.render_template('events_dummy.html')
