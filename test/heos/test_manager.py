@@ -63,7 +63,7 @@ async def test_set_play_state(monkeypatch, heos_device, play_state: str):
 
 
 @pytest.mark.asyncio
-async def test_set_play_state_invalid(monkeypatch, heos_device):
+async def test_set_play_state_invalid(heos_device):
     assert not await heos_device.set_play_state('playing')
     assert not await heos_device.set_play_state('')
 
@@ -90,6 +90,11 @@ async def test_set_volume(monkeypatch, heos_device):
     assert await heos_device.set_volume(78)
     assert has_run
     assert heos_device.volume == 78
+
+@pytest.mark.asyncio
+async def test_set_volume_invalid(heos_device):
+    assert not await heos_device.set_volume(-10)
+    assert not await heos_device.set_play_state(120)
 
 
 @pytest.mark.device_needed

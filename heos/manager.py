@@ -68,6 +68,9 @@ class HeosDevice:
         return successful
 
     async def set_volume(self, volume: int):
+        if volume < 0 or valume > 100:
+            return False
+
         successful, _, _ = await self._send_telnet_message(
             b'heos://player/set_volume?pid=' + str(self.pid).encode() + b'&level=' + str(volume).encode())
 
