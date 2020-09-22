@@ -81,7 +81,7 @@ class HeosDevice:
 
     async def set_mute(self, is_muted: bool = True):
         successful, _, _ = await self._send_telnet_message(
-            b'heos://player/set_mute?pid=' + str(self.pid).encode() + b'&state=' + b'on' if is_muted else b'off')
+            b'heos://player/set_mute?pid=' + str(self.pid).encode() + b'&state=' + (b'on' if is_muted else b'off'))
 
         if successful:
             self.is_muted = is_muted

@@ -122,6 +122,30 @@ async def test_set_mute(monkeypatch, heos_device):
     assert heos_device.is_muted
 
 
+@pytest.mark.asyncio
+async def test_set_mute_off(monkeypatch, heos_device):
+    has_run = False
+    heos_device.is_muted = True
+
+    async def mock_telnet(ip, command):
+        assert command == b'heos://player/set_mute?pid=1234&state=off'
+        nonlocal has_run
+        has_run = True
+        return {
+            "heos": {
+                "command": "player/set_mute",
+                "result": "success",
+                "message": "pid=1234&state=off"
+            }
+        }
+
+    monkeypatch.setattr(HeosDeviceManager, "send_telnet_message", mock_telnet)
+
+    assert await heos_device.set_mute(False)
+    assert has_run
+    assert not heos_device.is_muted
+
+
 @pytest.mark.device_needed
 @pytest.mark.asyncio
 async def test_scan_devices():
