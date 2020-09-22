@@ -91,10 +91,35 @@ async def test_set_volume(monkeypatch, heos_device):
     assert has_run
     assert heos_device.volume == 78
 
+
 @pytest.mark.asyncio
 async def test_set_volume_invalid(heos_device):
     assert not await heos_device.set_volume(-10)
     assert not await heos_device.set_play_state(120)
+
+
+@pytest.mark.asyncio
+async def test_set_mute(monkeypatch, heos_device):
+    has_run = False
+    heos_device.is_muted = False
+
+    async def mock_telnet(ip, command):
+        assert command == b'heos://player/set_mute?pid=1234&state=on'
+        nonlocal has_run
+        has_run = True
+        return {
+            "heos": {
+                "command": "player/set_mute",
+                "result": "success",
+                "message": "pid=1234&state=on"
+            }
+        }
+
+    monkeypatch.setattr(HeosDeviceManager, "send_telnet_message", mock_telnet)
+
+    assert await heos_device.set_mute()
+    assert has_run
+    assert heos_device.is_muted
 
 
 @pytest.mark.device_needed
