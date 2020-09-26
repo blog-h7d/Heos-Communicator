@@ -91,6 +91,20 @@ class HeosDevice:
 
         return successful
 
+    async def next_track(self):
+        successful, _, _ = await self._send_telnet_message(
+            b'heos://player/play_next?pid=' + str(self.pid).encode()
+        )
+
+        return successful
+
+    async def prev_track(self):
+        successful, _, _ = await self._send_telnet_message(
+            b'heos://player/play_previous?pid=' + str(self.pid).encode()
+        )
+
+        return successful
+
     @HeosEventCallback('player_state_changed')
     async def update_status(self):
         successful, message, payload = await self._send_telnet_message(

@@ -29,9 +29,6 @@ async def _shut_down():
     global heos_manager
     await heos_manager.stop_watch_events()
 
-    for device in heos_manager.get_all_devices():
-        await device.stop_watcher()
-
     await asyncio.sleep(2)
 
 
@@ -130,7 +127,7 @@ async def send_heos_command(name, command):
     if not device:
         return b'Device not found.', 404
 
-    if command not in ('play', 'pause', 'stop', 'volume_up', 'volume_down'):
+    if command not in ('play', 'pause', 'stop', 'volume_up', 'volume_down', 'next', 'prev'):
         return b'Invalid command.', 404
 
     successful = False
@@ -138,6 +135,10 @@ async def send_heos_command(name, command):
         successful = await device.set_play_state(command)
     elif command in ('volume_up', 'volume_down'):
         successful = await device.set_volume(device.volume + 2 if command == 'volume_up' else device.volume - 2)
+    elif command == 'next':
+        successful = await device.next_track()
+    elif command == 'prev':
+        successful = await device.prev_track()
 
     return json.dumps({
         'successful': successful
