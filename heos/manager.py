@@ -32,16 +32,19 @@ class HeosDevice:
         self.network = data["network"]
         self.serial = data["serial"]
         self.play_state = 'stop'
-        self.volume = 0
+        self.volume: int = 0
         self.is_muted = False
         self.repeat = "off"
         self.now_playing = dict()
 
         if doUpdate:
             loop = asyncio.get_event_loop()
-            loop.run_until_complete(self.update_status())
-            loop.run_until_complete(self.update_volume_force())
-            loop.run_until_complete(self.update_now_playing())
+            loop.create_task(self.initialize())
+
+    async def initialize(self):
+        await self.update_status()
+        await self.update_volume_force()
+        await self.update_now_playing()
 
     async def _send_telnet_message(self, command: bytes) -> (bool, str, dict):
         data = await HeosDeviceManager.send_telnet_message(self.ip, command)
@@ -99,7 +102,7 @@ class HeosDevice:
         successful, message, payload = await self._send_telnet_message(
             b'heos://player/get_volume?pid=' + str(self.pid).encode())
         if successful:
-            self.volume = re.search("(?<=&level=)[0-9]+", message).group(0)
+            self.volume = int(re.search("(?<=&level=)[0-9]+", message).group(0))
 
         successful, message, payload = await self._send_telnet_message(
             b'heos://player/get_mute?pid=' + str(self.pid).encode())
@@ -108,7 +111,7 @@ class HeosDevice:
 
     @HeosEventCallback('player_volume_changed', ['level', 'mute'])
     async def update_volume(self, level, mute):
-        self.volume = level
+        self.volume = int(level)
         self.mute = mute
 
     @HeosEventCallback('player_now_playing_changed')
@@ -172,7 +175,7 @@ class HeosDeviceManager:
                 if not device["pid"] in self._all_devices:
                     new_device = HeosDevice(device)
                     self._all_devices[new_device.pid] = new_device
-                    await new_device.start_watcher()
+                    await new_device.initialize()
 
     async def _filter_response_for_event(self) -> dict:
         tn = self.event_telnet_connection
