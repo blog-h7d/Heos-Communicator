@@ -172,7 +172,7 @@ class A:
 
 def test_get_heos_decorators():
     data = HeosDeviceManager.get_heos_decorators(A)
-    print(data)
+
     assert "test" in data
     assert data["test"][0]["name"] == "HeosEventCallback"
     assert data["test"][0]["event"] == "test_event_2711"
@@ -186,4 +186,6 @@ def test_get_heos_decorators():
 
 def test_get_heos_decorators2():
     data = HeosDeviceManager.get_heos_decorators()
-    print(data)
+    assert data
+    assert "update_status" in data
+    assert "update_volume" in data

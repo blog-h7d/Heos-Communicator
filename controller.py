@@ -118,6 +118,11 @@ def convert_to_dict(obj):
 
 @app.route('/heos_devices/')
 async def get_heos_devices():
+    global heos_manager
+
+    if not heos_manager:
+        heos_manager = heos.manager.HeosDeviceManager()
+
     result = heos_manager.get_all_devices()
     return json.dumps(result, default=convert_to_dict), 200, {'Content-Type': 'application/json; charset=utf-8'}
 
@@ -125,7 +130,10 @@ async def get_heos_devices():
 @app.route('/heos_device/<name>/')
 async def get_heos_device(name):
     result = heos_manager.get_device_by_name(name)
-    return json.dumps(result, default=convert_to_dict), 200, {'Content-Type': 'application/json; charset=utf-8'}
+    if result:
+        return json.dumps(result, default=convert_to_dict), 200, {'Content-Type': 'application/json; charset=utf-8'}
+    else:
+        return b'Device not found.', 404
 
 
 @app.route('/heos_device/<name>/<command>/')

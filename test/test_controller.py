@@ -6,6 +6,7 @@ import quart.flask_patch
 import quart.testing
 
 import controller
+import heos.manager
 from controller import app as app_for_testing, convert_to_dict
 
 
@@ -89,3 +90,99 @@ def test_convert_to_dict():
     assert "p1" in dic
     assert dic["p1"] == "123"
     assert "_p2" not in dic
+
+
+@pytest.mark.asyncio
+async def test_get_heos_devices(client):
+    response: quart.wrappers.Response
+
+    response = await client.get('/heos_devices/')
+    assert response.status_code == 200
+
+    raw_data = await response.get_data()
+    data = json.loads(raw_data)
+
+    assert type(data) == list
+
+
+@pytest.mark.asyncio
+async def test_get_heos_device_by_invalid_name(client):
+    response: quart.wrappers.Response
+
+    response = await client.get('/heos_device/test123/')
+    assert response.status_code == 404
+
+
+class DummyHeos(heos.manager.HeosDevice):
+    def __init__(self):
+        self.pid = "1234"
+        self.name = "Dummy"
+        self.model = "Dummy"
+        self.version = "123"
+        self.volume = 0
+
+    async def set_play_state(self, play_state: str) -> bool:
+        return True
+
+    async def set_volume(self, volume: int):
+        return True
+
+    async def next_track(self):
+        return True
+
+    async def prev_track(self):
+        return True
+
+
+@pytest.mark.asyncio
+async def test_get_heos_device_by_name(client):
+    response: quart.wrappers.Response
+
+    if not controller.heos_manager:
+        controller.heos_manager = heos.manager.HeosDeviceManager()
+    controller.heos_manager._all_devices["1234"] = DummyHeos()
+
+    response = await client.get('/heos_device/Dummy/')
+    assert response.status_code == 200
+
+    raw_data = await response.get_data()
+    data = json.loads(raw_data)
+
+    assert type(data) == dict
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("command", ('/heos_device/Dummy/bla/',
+                                     '/heos_device/Test/play/',
+                                     '/heos_device/Dummy/Play/',
+                                     ))
+async def test_get_heos_device_command_invalid(client, command):
+    response: quart.wrappers.Response
+
+    if not controller.heos_manager:
+        controller.heos_manager = heos.manager.HeosDeviceManager()
+    controller.heos_manager._all_devices["1234"] = DummyHeos()
+
+    response = await client.get(command)
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("command", ('/heos_device/Dummy/play/',
+                                     '/heos_device/Dummy/pause/',
+                                     '/heos_device/Dummy/stop/',
+                                     '/heos_device/Dummy/volume_up/',
+                                     '/heos_device/Dummy/volume_down/',
+                                     '/heos_device/Dummy/next/',
+                                     '/heos_device/Dummy/prev/',
+                                     ))
+async def test_get_heos_device_command(client, command):
+    response: quart.wrappers.Response
+
+    if not controller.heos_manager:
+        controller.heos_manager = heos.manager.HeosDeviceManager()
+
+    controller.heos_manager._all_devices["1234"] = DummyHeos()
+
+    response = await client.get(command)
+    assert response.status_code == 200
