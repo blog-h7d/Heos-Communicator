@@ -10,7 +10,7 @@ import heos
 
 
 class HeosEventCallback:
-    def __init__(self, name: str, param_names: dict = []):
+    def __init__(self, name: str, param_names: list = []):
         self.name = name
         self.param_names = param_names
 
@@ -23,7 +23,7 @@ class HeosEventCallback:
 
 class HeosDevice:
 
-    def __init__(self, data: dict):
+    def __init__(self, data: dict, doUpdate=True):
         self.pid = int(data["pid"])
         self.name = data["name"]
         self.model = data["model"]
@@ -32,31 +32,78 @@ class HeosDevice:
         self.network = data["network"]
         self.serial = data["serial"]
         self.play_state = 'stop'
-        self.volume = 0
-        self.mute = "off"
+        self.volume: int = 0
+        self.is_muted = False
         self.repeat = "off"
         self.now_playing = dict()
-        self.__tasks = list()
 
-    async def start_watcher(self):
-        loop = asyncio.get_event_loop()
+        if doUpdate:
+            loop = asyncio.get_event_loop()
+            loop.create_task(self.initialize())
 
+    async def initialize(self):
         await self.update_status()
         await self.update_volume_force()
         await self.update_now_playing()
 
-    async def stop_watcher(self):
-        for task in self.__tasks:  # type: asyncio.Task
-            task.cancel()
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
-
-            self.__tasks.remove(task)
+    async def _send_telnet_message(self, command: bytes) -> (bool, str, dict):
+        data = await HeosDeviceManager.send_telnet_message(self.ip, command)
+        successful = data["heos"]["result"] == 'success'
+        if "payload" in data:
+            return successful, data["heos"]["message"], data["payload"]
+        else:
+            return successful, data["heos"]["message"], {}
 
     async def _ping(self):
-        await self._send_telnet_message(b'heos://system/heart_beat')
+        successful, _, _ = await self._send_telnet_message(b'heos://system/heart_beat')
+        return successful
+
+    async def set_play_state(self, play_state: str) -> bool:
+        if play_state not in ('play', 'pause', 'stop'):
+            return False
+
+        successful, _, _ = await self._send_telnet_message(
+            b'heos://player/set_play_state?pid=' + str(self.pid).encode() + b'&state=' + play_state.encode())
+
+        if successful:
+            self.play_state = play_state
+
+        return successful
+
+    async def set_volume(self, volume: int):
+        if volume < 0 or volume > 100:
+            return False
+
+        successful, _, _ = await self._send_telnet_message(
+            b'heos://player/set_volume?pid=' + str(self.pid).encode() + b'&level=' + str(volume).encode())
+
+        if successful:
+            self.volume = volume
+
+        return successful
+
+    async def set_mute(self, is_muted: bool = True):
+        successful, _, _ = await self._send_telnet_message(
+            b'heos://player/set_mute?pid=' + str(self.pid).encode() + b'&state=' + (b'on' if is_muted else b'off'))
+
+        if successful:
+            self.is_muted = is_muted
+
+        return successful
+
+    async def next_track(self):
+        successful, _, _ = await self._send_telnet_message(
+            b'heos://player/play_next?pid=' + str(self.pid).encode()
+        )
+
+        return successful
+
+    async def prev_track(self):
+        successful, _, _ = await self._send_telnet_message(
+            b'heos://player/play_previous?pid=' + str(self.pid).encode()
+        )
+
+        return successful
 
     @HeosEventCallback('player_state_changed')
     async def update_status(self):
@@ -69,7 +116,7 @@ class HeosDevice:
         successful, message, payload = await self._send_telnet_message(
             b'heos://player/get_volume?pid=' + str(self.pid).encode())
         if successful:
-            self.volume = re.search("(?<=&level=)[0-9]+", message).group(0)
+            self.volume = int(re.search("(?<=&level=)[0-9]+", message).group(0))
 
         successful, message, payload = await self._send_telnet_message(
             b'heos://player/get_mute?pid=' + str(self.pid).encode())
@@ -78,7 +125,7 @@ class HeosDevice:
 
     @HeosEventCallback('player_volume_changed', ['level', 'mute'])
     async def update_volume(self, level, mute):
-        self.volume = level
+        self.volume = int(level)
         self.mute = mute
 
     @HeosEventCallback('player_now_playing_changed')
@@ -102,14 +149,6 @@ class HeosDevice:
     @HeosEventCallback('repeat_mode_changed', ['repeat', ])
     async def update_repeat_mode(self, repeat):
         self.repeat = repeat
-
-    async def _send_telnet_message(self, command: bytes) -> (bool, str, dict):
-        data = await HeosDeviceManager.send_telnet_message(self.ip, command)
-        successful = data["heos"]["result"] == 'success'
-        if "payload" in data:
-            return successful, data["heos"]["message"], data["payload"]
-        else:
-            return successful, data["heos"]["message"], {}
 
 
 class HeosDeviceManager:
@@ -150,7 +189,7 @@ class HeosDeviceManager:
                 if not device["pid"] in self._all_devices:
                     new_device = HeosDevice(device)
                     self._all_devices[new_device.pid] = new_device
-                    await new_device.start_watcher()
+                    await new_device.initialize()
 
     async def _filter_response_for_event(self) -> dict:
         tn = self.event_telnet_connection
@@ -200,7 +239,7 @@ class HeosDeviceManager:
                 heos.EventQueueManager.add_event(heos.ServerHeosEvent({
                     "command": command,
                     "event": event,
-                    "message":message,
+                    "message": message,
                     "full": response
                 }))
 

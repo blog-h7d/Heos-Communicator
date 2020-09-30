@@ -1,5 +1,6 @@
 import asyncio
 import typing
+import json
 
 
 class ServerHeosEvent:
@@ -11,7 +12,9 @@ class ServerHeosEvent:
 
     def encode(self) -> bytes:
         message = f"Event: {self.event}"
-        message += f"\ndata: {self.data}"
+        json_data = json.dumps(self.data, indent=2)
+        for line in json_data.splitlines():
+            message += f"\ndata: {line}"
         # message += f"\nid: {self.id}"
         # message += f"\nretry: {self.retry}"
         message += "\n\n"

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>RichClient for Heos Communicator</title>
+    <script type="text/javascript" src="https://code.jquery.com/jquery-2.1.0.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+    <script src="//cdn.jsdelivr.net/npm/jquery.marquee@1.5.0/jquery.marquee.min.js" type="text/javascript"></script>
+
+    <link rel="stylesheet" href="index.css">
+    <script type="text/javascript" src="main.js"></script>
+
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons"
+          rel="stylesheet">
+
+</head>
+<body>
+<div id="heosapp">
+    <div id="header">
+        <div class="device_list">
+            <div v-for="device in devices" class="heos_device_selector" @click="select(device)"
+                 v-bind:class="{ selected: device.selected }">
+                <i class="material-icons icon">speaker</i>
+                <span>{{device.name}}</span>
+            </div>
+        </div>
+    </div>
+    <div id="body">
+        <div id="player">
+            <div v-if="device_selected">
+                <div id="now_playing">
+                    <div class="title">
+                        <marquee behavior="scroll" direction="left" v-if="selected_device.now_playing.song.length > 50">
+                            {{ selected_device.now_playing.song }}
+                        </marquee>
+                        <span v-else>{{ selected_device.now_playing.song }}</span>
+                    </div>
+                    <div class="album" v-if="selected_device.now_playing.album">aus: {{
+                        selected_device.now_playing.album }}
+                    </div>
+                    <div class="artist">{{ selected_device.now_playing.artist }}</div>
+                    {{selected_device.volume}}
+                </div>
+            </div>
+            <div v-else>
+                Please select a player
+            </div>
+        </div>
+    </div>
+    <div id="footer">
+        Footer
+    </div>
+</div>
+</body>
+</html>

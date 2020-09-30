@@ -7,7 +7,7 @@ import upnpy
 import heos
 import heos.manager
 
-app = quart.Quart("HEOS Communication Server")
+app = quart.Quart("HEOS Communication Server", static_url_path='')
 app.secret_key = "HeosCommunication_ChangeThisKeyForInstallation"
 
 found_heos_devices = list()
@@ -28,9 +28,6 @@ async def _start_server():
 async def _shut_down():
     global heos_manager
     await heos_manager.stop_watch_events()
-
-    for device in heos_manager.get_all_devices():
-        await device.stop_watcher()
 
     await asyncio.sleep(2)
 
@@ -71,10 +68,34 @@ async def scan_for_devices(timeout=2):
 
 @app.route('/')
 async def main():
+    return await app.send_static_file('index.html')
+
+
+@app.route('/api/')
+async def get_api():
+    global heos_manager
+
+    if not heos_manager:
+        heos_manager = heos.manager.HeosDeviceManager()
+
+    devicecommand = dict()
+    for device in heos_manager.get_all_devices():
+        commands = list()
+        commands.append(quart.request.url_root[:-4] + "heos_device/" + device.name + "/")
+        commands.append(quart.request.url_root[:-4] + "heos_device/" + device.name + "/play/")
+        commands.append(quart.request.url_root[:-4] + "heos_device/" + device.name + "/pause/")
+        commands.append(quart.request.url_root[:-4] + "heos_device/" + device.name + "/stop/")
+        commands.append(quart.request.url_root[:-4] + "heos_device/" + device.name + "/volume_up/")
+        commands.append(quart.request.url_root[:-4] + "heos_device/" + device.name + "/volume_down/")
+        commands.append(quart.request.url_root[:-4] + "heos_device/" + device.name + "/next/")
+        commands.append(quart.request.url_root[:-4] + "heos_device/" + device.name + "/prev/")
+        devicecommand[device.name] = commands
+
     return json.dumps({
-        'network_devices': quart.request.url_root + "devices/",
-        'heos-devices': quart.request.url_root + "heos_devices/",
-        'heos-events-page': quart.request.url_root + "event_test/"
+        'network_devices': quart.request.url_root[:-4] + "devices/",
+        'heos-devices': quart.request.url_root[:-4] + "heos_devices/",
+        'heos-events-page': quart.request.url_root[:-4] + "event_test/",
+        'heos-device': devicecommand
     }), 200, {'Content-Type': 'application/json; charset=utf-8'}
 
 
@@ -86,14 +107,22 @@ async def get_devices():
 
 def convert_to_dict(obj):
     obj_dict = dict()
+    for key, value in obj.__class__.__dict__.items():
+        if not key.startswith("_") and not callable(value):
+            obj_dict[key] = value
     for key, value in obj.__dict__.items():
-        if not key.startswith("_"):
+        if not key.startswith("_") and not callable(value):
             obj_dict[key] = value
     return obj_dict
 
 
 @app.route('/heos_devices/')
 async def get_heos_devices():
+    global heos_manager
+
+    if not heos_manager:
+        heos_manager = heos.manager.HeosDeviceManager()
+
     result = heos_manager.get_all_devices()
     return json.dumps(result, default=convert_to_dict), 200, {'Content-Type': 'application/json; charset=utf-8'}
 
@@ -101,7 +130,35 @@ async def get_heos_devices():
 @app.route('/heos_device/<name>/')
 async def get_heos_device(name):
     result = heos_manager.get_device_by_name(name)
-    return json.dumps(result, default=convert_to_dict), 200, {'Content-Type': 'application/json; charset=utf-8'}
+    if result:
+        return json.dumps(result, default=convert_to_dict), 200, {'Content-Type': 'application/json; charset=utf-8'}
+    else:
+        return b'Device not found.', 404
+
+
+@app.route('/heos_device/<name>/<command>/')
+@app.route('/heos_device/<name>/<command>/<param>/')
+async def send_heos_command(name, command):
+    device = heos_manager.get_device_by_name(name)
+    if not device:
+        return b'Device not found.', 404
+
+    if command not in ('play', 'pause', 'stop', 'volume_up', 'volume_down', 'next', 'prev'):
+        return b'Invalid command.', 404
+
+    successful = False
+    if command in ('play', 'pause', 'stop'):
+        successful = await device.set_play_state(command)
+    elif command in ('volume_up', 'volume_down'):
+        successful = await device.set_volume(device.volume + 2 if command == 'volume_up' else device.volume - 2)
+    elif command == 'next':
+        successful = await device.next_track()
+    elif command == 'prev':
+        successful = await device.prev_track()
+
+    return json.dumps({
+        'successful': successful
+    }), 200, {'Content-Type': 'application/json; charset=utf-8'}
 
 
 @app.route('/event_test/')
