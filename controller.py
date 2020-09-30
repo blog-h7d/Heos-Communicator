@@ -73,6 +73,11 @@ async def main():
 
 @app.route('/api/')
 async def get_api():
+    global heos_manager
+
+    if not heos_manager:
+        heos_manager = heos.manager.HeosDeviceManager()
+
     devicecommand = dict()
     for device in heos_manager.get_all_devices():
         commands = list()
@@ -102,8 +107,11 @@ async def get_devices():
 
 def convert_to_dict(obj):
     obj_dict = dict()
+    for key, value in obj.__class__.__dict__.items():
+        if not key.startswith("_") and not callable(value):
+            obj_dict[key] = value
     for key, value in obj.__dict__.items():
-        if not key.startswith("_"):
+        if not key.startswith("_") and not callable(value):
             obj_dict[key] = value
     return obj_dict
 
