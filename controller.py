@@ -94,6 +94,7 @@ async def get_api():
     return json.dumps({
         'network_devices': quart.request.url_root[:-4] + "devices/",
         'heos-devices': quart.request.url_root[:-4] + "heos_devices/",
+        'heos-sources': quart.request.url_root[:-4] + "heos_sources/",
         'heos-events-page': quart.request.url_root[:-4] + "event_test/",
         'heos-device': devicecommand
     }), 200, {'Content-Type': 'application/json; charset=utf-8'}
@@ -159,6 +160,15 @@ async def send_heos_command(name, command):
     return json.dumps({
         'successful': successful
     }), 200, {'Content-Type': 'application/json; charset=utf-8'}
+
+
+@app.route('/heos_sources/')
+async def get_heos_sources():
+    result = heos_manager.get_all_sources()
+    if result:
+        return json.dumps(result, default=convert_to_dict), 200, {'Content-Type': 'application/json; charset=utf-8'}
+    else:
+        return b'No Heos Source found.', 404
 
 
 @app.route('/event_test/')
