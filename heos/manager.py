@@ -7,7 +7,7 @@ import telnetlib
 import typing
 
 import heos
-import heos.source
+import heos.sources
 
 
 class HeosEventCallback:
@@ -157,7 +157,7 @@ class HeosDeviceManager:
 
     def __init__(self):
         self._all_devices: typing.Dict[str, HeosDevice] = dict()
-        self._all_sources: typing.Dict[int, heos.source.HeosSource] = dict()
+        self._all_sources: typing.Dict[int, heos.sources.HeosSource] = dict()
         self.watch_enabled = False
         self.event_telnet_connection: telnetlib.Telnet
 
@@ -207,7 +207,7 @@ class HeosDeviceManager:
             data = await self.send_telnet_message(ip, b'heos://browse/get_music_sources')
             for source in data["payload"]:
                 if not source["sid"] in self._all_sources:
-                    new_source = heos.source.HeosSource(ip, None, source)
+                    new_source = heos.sources.HeosSource(ip, None, source)
                     self._all_sources[new_source.sid] = new_source
                     await new_source.initialize()
 
@@ -321,13 +321,13 @@ class HeosDeviceManager:
             if device.name == name:
                 return device
 
-    def get_all_sources(self) -> typing.List[heos.source.HeosSource]:
+    def get_all_sources(self) -> list:
         if not self._all_sources:
             return list()
 
         return list(self._all_sources.values())
 
-    def get_source_by_id(self, sid: int) -> heos.source.HeosSource:
+    def get_source_by_id(self, sid: int) -> list:
         if not self._all_sources:
             return None
 

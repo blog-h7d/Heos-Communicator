@@ -5,9 +5,9 @@ import heos.manager
 
 class HeosSearchCriteria:
 
-    def __init__(self, ip, sid, data):
+    def __init__(self, ip, parent, data):
         self._ip = ip
-        self._sid = sid
+        self._parent = parent
         self.scid = data["scid"] if "scid" in data else 0
         self.name = data["name"] if "name" in data else ""
         self.allow_wildcard = data["wildcard"] == "yes"
