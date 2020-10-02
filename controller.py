@@ -98,7 +98,7 @@ async def get_api():
         sourcecommand[source.sid] = commands
 
     return json.dumps({
-        'network_devices': quart.request.url_root[:-4] + "devices/",
+        'network-devices': quart.request.url_root[:-4] + "devices/",
         'heos-devices': quart.request.url_root[:-4] + "heos_devices/",
         'heos-sources': quart.request.url_root[:-4] + "heos_sources/",
         'heos-events-page': quart.request.url_root[:-4] + "event_test/",

@@ -10,6 +10,27 @@ import heos.manager
 from controller import app as app_for_testing, convert_to_dict
 
 
+class DummyHeos(heos.manager.HeosDevice):
+    def __init__(self):
+        self.pid = "1234"
+        self.name = "Dummy"
+        self.model = "Dummy"
+        self.version = "123"
+        self.volume = 0
+
+    async def set_play_state(self, play_state: str) -> bool:
+        return True
+
+    async def set_volume(self, volume: int):
+        return True
+
+    async def next_track(self):
+        return True
+
+    async def prev_track(self):
+        return True
+
+
 @pytest.fixture
 async def client() -> quart.app.QuartClient:
     app_for_testing.config['TESTING'] = True
@@ -46,7 +67,27 @@ async def test_api_page_simple(client: quart.app.QuartClient):
     assert data
     json_data = json.loads(data)
     assert json_data
-    assert 'network_devices' in json_data
+    assert 'network-devices' in json_data
+
+
+@pytest.mark.asyncio
+async def test_api_page_more(client: quart.app.QuartClient):
+    if not controller.heos_manager:
+        controller.heos_manager = heos.manager.HeosDeviceManager()
+
+    controller.heos_manager._all_devices["1234"] = DummyHeos()
+
+    response: quart.wrappers.Response
+    response = await client.get('/api/')
+    assert response.status_code == 200
+
+    data = await response.get_data()
+    assert data
+    json_data = json.loads(data)
+    assert json_data
+    assert 'network-devices' in json_data
+    assert 'heos-devices' in json_data
+    assert len(json_data["heos-devices"]) > 0
 
 
 @pytest.mark.asyncio
@@ -111,27 +152,6 @@ async def test_get_heos_device_by_invalid_name(client):
 
     response = await client.get('/heos_device/test123/')
     assert response.status_code == 404
-
-
-class DummyHeos(heos.manager.HeosDevice):
-    def __init__(self):
-        self.pid = "1234"
-        self.name = "Dummy"
-        self.model = "Dummy"
-        self.version = "123"
-        self.volume = 0
-
-    async def set_play_state(self, play_state: str) -> bool:
-        return True
-
-    async def set_volume(self, volume: int):
-        return True
-
-    async def next_track(self):
-        return True
-
-    async def prev_track(self):
-        return True
 
 
 @pytest.mark.asyncio
