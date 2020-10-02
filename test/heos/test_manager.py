@@ -146,6 +146,81 @@ async def test_set_mute_off(monkeypatch, heos_device):
     assert not heos_device.is_muted
 
 
+@pytest.mark.asyncio
+async def test_next_track(monkeypatch, heos_device):
+    has_run = False
+    heos_device.is_muted = True
+
+    async def mock_telnet(ip, command):
+        assert command == b'heos://player/play_next?pid=1234'
+        nonlocal has_run
+        has_run = True
+        return {
+            "heos": {
+                "command": "player/play_next",
+                "result": "success",
+                "message": "pid=1234"
+            }
+        }
+
+    monkeypatch.setattr(HeosDeviceManager, "send_telnet_message", mock_telnet)
+
+    assert await heos_device.next_track()
+    assert has_run
+
+
+@pytest.mark.asyncio
+async def test_prev_track(monkeypatch, heos_device):
+    has_run = False
+    heos_device.is_muted = True
+
+    async def mock_telnet(ip, command):
+        assert command == b'heos://player/play_previous?pid=1234'
+        nonlocal has_run
+        has_run = True
+        return {
+            "heos": {
+                "command": "player/play_previous",
+                "result": "success",
+                "message": "pid=1234"
+            }
+        }
+
+    monkeypatch.setattr(HeosDeviceManager, "send_telnet_message", mock_telnet)
+
+    assert await heos_device.prev_track()
+    assert has_run
+
+
+@pytest.mark.parametrize("volume, mute", [(10, "off"),
+                                          (60, "on"),
+                                          ("22", "off")
+                                          ])
+@pytest.mark.asyncio
+async def test_update_volume(heos_device, volume, mute):
+    await heos_device.update_volume(volume, mute)
+
+    assert heos_device.volume == volume
+    if mute == "on":
+        assert heos_device.is_muted
+    else:
+        assert not heos_device.is_muted
+
+
+@pytest.mark.asyncio
+async def test_update_volume_invalid(heos_device):
+    await heos_device.update_volume(-10, "on")
+    assert heos_device.volume == 0
+
+    await heos_device.update_volume("105", "on")
+    assert heos_device.volume == 100
+
+    with pytest.raises(ValueError):
+        await heos_device.update_volume("abc", "on")
+
+    with pytest.raises(ValueError):
+        await heos_device.update_volume("22.3", "on")
+
 @pytest.mark.device_needed
 @pytest.mark.asyncio
 async def test_scan_devices():

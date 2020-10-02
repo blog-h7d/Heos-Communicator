@@ -122,12 +122,12 @@ class HeosDevice:
         successful, message, payload = await self._send_telnet_message(
             b'heos://player/get_mute?pid=' + str(self.pid).encode())
         if successful:
-            self.mute = re.search("(?<=&state=)[a-z]+", message).group(0)
+            self.is_muted = re.search("(?<=&state=)[a-z]+", message).group(0) == "on"
 
     @HeosEventCallback('player_volume_changed', ['level', 'mute'])
     async def update_volume(self, level, mute):
-        self.volume = int(level)
-        self.mute = mute
+        self.volume = min(max(int(level), 0), 100) # volume level has to be between 0 and 100
+        self.is_muted = mute == "on"
 
     @HeosEventCallback('player_now_playing_changed')
     async def update_now_playing(self):
