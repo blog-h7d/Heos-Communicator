@@ -7,6 +7,7 @@ import telnetlib
 import typing
 
 import heos
+import heos.sources
 
 
 class HeosEventCallback:
@@ -121,12 +122,12 @@ class HeosDevice:
         successful, message, payload = await self._send_telnet_message(
             b'heos://player/get_mute?pid=' + str(self.pid).encode())
         if successful:
-            self.mute = re.search("(?<=&state=)[a-z]+", message).group(0)
+            self.is_muted = re.search("(?<=&state=)[a-z]+", message).group(0) == "on"
 
     @HeosEventCallback('player_volume_changed', ['level', 'mute'])
     async def update_volume(self, level, mute):
-        self.volume = int(level)
-        self.mute = mute
+        self.volume = min(max(int(level), 0), 100) # volume level has to be between 0 and 100
+        self.is_muted = mute == "on"
 
     @HeosEventCallback('player_now_playing_changed')
     async def update_now_playing(self):
@@ -156,11 +157,13 @@ class HeosDeviceManager:
 
     def __init__(self):
         self._all_devices: typing.Dict[str, HeosDevice] = dict()
+        self._all_sources: typing.Dict[int, heos.sources.HeosSource] = dict()
         self.watch_enabled = False
         self.event_telnet_connection: telnetlib.Telnet
 
     async def initialize(self, list_of_ips):
         await self._scan_for_devices(list_of_ips)
+        await self._scan_for_sources(list_of_ips)
 
     @staticmethod
     async def send_telnet_message(ip, command: bytes) -> dict:
@@ -170,26 +173,43 @@ class HeosDeviceManager:
         async with HeosDeviceManager._locks[ip]:
             tn = telnetlib.Telnet(ip, 1255)
             tn.write(command + b"\n")
+
             message = b''
             while True:
-                message += tn.read_some()
+                message += tn.read_until(b"}")
                 if message:
                     try:
                         data = json.loads(message.decode('utf-8'))
-                        return data
+
+                        # reset message because real answer was not fetched
+                        if data["heos"]["message"].startswith("command under process"):
+                            message = b''
+                        else:
+                            return data
+
                     except json.JSONDecodeError:
                         pass
+
                     except UnicodeDecodeError:
                         pass
 
     async def _scan_for_devices(self, list_of_ips):
         for ip in list_of_ips:
-            data = await self.send_telnet_message(ip, b"heos://player/get_players")
+            data = await self.send_telnet_message(ip, b'heos://player/get_players')
             for device in data["payload"]:
                 if not device["pid"] in self._all_devices:
                     new_device = HeosDevice(device)
                     self._all_devices[new_device.pid] = new_device
                     await new_device.initialize()
+
+    async def _scan_for_sources(self, list_of_ips):
+        for ip in list_of_ips:
+            data = await self.send_telnet_message(ip, b'heos://browse/get_music_sources')
+            for source in data["payload"]:
+                if not source["sid"] in self._all_sources:
+                    new_source = heos.sources.HeosSource(ip, None, source)
+                    self._all_sources[new_source.sid] = new_source
+                    await new_source.initialize()
 
     async def _filter_response_for_event(self) -> dict:
         tn = self.event_telnet_connection
@@ -300,3 +320,18 @@ class HeosDeviceManager:
         for device in self._all_devices.values():  # type: HeosDevice
             if device.name == name:
                 return device
+
+    def get_all_sources(self) -> list:
+        if not self._all_sources:
+            return list()
+
+        return list(self._all_sources.values())
+
+    def get_source_by_id(self, sid: int) -> list:
+        if not self._all_sources:
+            return None
+
+        for container in self._all_sources.values():  # type: heos.source.HeosSource
+            found = container.get_source(sid)
+            if found:
+                return found

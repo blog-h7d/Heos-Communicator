@@ -12,11 +12,9 @@ class ServerHeosEvent:
 
     def encode(self) -> bytes:
         message = f"Event: {self.event}"
-        json_data = json.dumps(self.data, indent=2)
+        json_data = json.dumps(self.data, indent=2, ensure_ascii=False)
         for line in json_data.splitlines():
             message += f"\ndata: {line}"
-        # message += f"\nid: {self.id}"
-        # message += f"\nretry: {self.retry}"
         message += "\n\n"
         return message.encode('utf-8')
 
