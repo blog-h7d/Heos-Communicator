@@ -115,7 +115,7 @@ class HeosSourceContainer(HeosSourceBase):
 
     def __init__(self, ip, parent, data):
         super().__init__(ip, parent, data)
-        self.cid = data["cid"]
+        self.cid = data["cid"].strip()
         self.is_container = data["container"] == "yes" if "container" in data else True
         self.is_playable = data["playable"] == "yes" if "playable" in data else False
 
@@ -128,7 +128,7 @@ class HeosSourceContainer(HeosSourceBase):
         if self.cid == cid:
             return self
 
-        super().get_container(cid)
+        return super().get_container(cid)
 
     def _get_browse_command(self):
         # TODO: get valid range
