@@ -200,7 +200,7 @@ async def test_prev_track(monkeypatch, heos_device):
 async def test_update_volume(heos_device, volume, mute):
     await heos_device.update_volume(volume, mute)
 
-    assert heos_device.volume == volume
+    assert heos_device.volume == int(volume)
     if mute == "on":
         assert heos_device.is_muted
     else:
