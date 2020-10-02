@@ -91,12 +91,19 @@ async def get_api():
         commands.append(quart.request.url_root[:-4] + "heos_device/" + device.name + "/prev/")
         devicecommand[device.name] = commands
 
+    sourcecommand = dict()
+    for source in heos_manager.get_all_sources():
+        commands = list()
+        commands.append(quart.request.url_root[:-4] + "heos_source/" + str(source.sid) + "/")
+        sourcecommand[source.sid] = commands
+
     return json.dumps({
         'network_devices': quart.request.url_root[:-4] + "devices/",
         'heos-devices': quart.request.url_root[:-4] + "heos_devices/",
         'heos-sources': quart.request.url_root[:-4] + "heos_sources/",
         'heos-events-page': quart.request.url_root[:-4] + "event_test/",
-        'heos-device': devicecommand
+        'heos-device': devicecommand,
+        'heos-source': sourcecommand,
     }), 200, {'Content-Type': 'application/json; charset=utf-8'}
 
 
@@ -166,9 +173,27 @@ async def send_heos_command(name, command):
 async def get_heos_sources():
     result = heos_manager.get_all_sources()
     if result:
-        return json.dumps(result, default=convert_to_dict), 200, {'Content-Type': 'application/json; charset=utf-8'}
+        return json.dumps(result, default=convert_to_dict, sort_keys=True), 200, {'Content-Type': 'application/json; charset=utf-8'}
     else:
         return b'No Heos Source found.', 404
+
+
+@app.route('/heos_source/<int:sid>/')
+@app.route('/heos_source/<int:sid>/<path:cid>/')
+async def get_heos_source_container(sid: int, cid: str = ""):
+    result = heos_manager.get_source_by_id(sid)
+    if not result:
+        return b'No Heos Source found.', 404
+
+    if cid:
+        result = result.get_container(cid)
+
+        if not result:
+            return b'No Heos Source container found.', 404
+
+        await result.browse(1)
+
+    return json.dumps(result, default=convert_to_dict), 200, {'Content-Type': 'application/json; charset=utf-8'}
 
 
 @app.route('/event_test/')

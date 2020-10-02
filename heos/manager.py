@@ -7,6 +7,7 @@ import telnetlib
 import typing
 
 import heos
+import heos.source
 
 
 class HeosEventCallback:
@@ -151,133 +152,12 @@ class HeosDevice:
         self.repeat = repeat
 
 
-class HeosSearchCriteria:
-
-    def __init__(self, ip, sid, data):
-        self._ip = ip
-        self.sid = sid
-        self.scid = data["scid"] if "scid" in data else 0
-        self.name = data["name"] if "name" in data else ""
-        self.allow_wildcard = data["wildcard"] == "yes"
-        self.is_playable = data["playable"] == "yes" if "playable" in data else False
-        self.cid = data["cid"] if "cid" in data else 0
-
-
-class HeosSourceContainer:
-
-    def __init__(self, ip, sid, data):
-        self._ip = ip
-        self.sid = data["sid"] if "sid" in data else sid
-        self.cid = data["cid"] if "cid" in data else 0
-        self.mid = data["mid"] if "mid" in data else 0
-        self.is_container = data["container"] == "yes" if "container" in data else True
-        self.is_playable = data["playable"] == "yes" if "playable" in data else False
-        self.type = data["type"]
-        self.name = data["name"]
-        self.container = list()
-        self.search_criteria = list()
-
-    async def _send_telnet_message(self, command: bytes) -> (bool, str, dict):
-        data = await HeosDeviceManager.send_telnet_message(self._ip, command)
-        successful = data["heos"]["result"] == 'success'
-        if "payload" in data:
-            return successful, data["heos"]["message"], data["payload"]
-        else:
-            return successful, data["heos"]["message"], {}
-
-    async def get_search_criteria(self):
-        successful, message, payload = await self._send_telnet_message(
-            b'heos://browse/get_search_criteria?sid=' + str(self.sid).encode()
-        )
-
-        if successful:
-            self.search_criteria = list()
-            for criteria in payload:
-                self.search_criteria.append(HeosSearchCriteria(self._ip, self.sid, criteria))
-
-    async def browse(self, recursion_level=0):
-        successful, message, payload = False, "", list()
-        if self.cid:
-            successful, message, payload = await self._send_telnet_message(
-                b'heos://browse/browse?sid=' + str(self.sid).encode()
-                + b'&cid=' + str(self.cid).encode()
-                + b'&range=0,100'
-            )
-        else:
-            successful, message, payload = await self._send_telnet_message(
-                b'heos://browse/browse?sid=' + str(self.sid).encode()
-            )
-
-        if successful:
-            self.container = list()
-            for container in payload:
-                new_container = HeosSourceContainer(self._ip, self.sid, container)
-                self.container.append(new_container)
-                if recursion_level > 0:
-                    await new_container.browse(recursion_level - 1)
-
-
-class HeosSource:
-
-    def __init__(self, ip, data):
-        self._ip = ip
-        self.name = data["name"]
-        self.type = data["type"]
-        self.sid = data["sid"]
-        self.available = data["available"]
-        self.username = data["service_username"] if "service_username" in data else ""
-        self.container = list()
-        self.search_criteria = list()
-
-    async def initialize(self):
-        await self.get_root_container()
-        await self.get_search_criteria()
-
-    async def _send_telnet_message(self, command: bytes) -> (bool, str, dict):
-        data = await HeosDeviceManager.send_telnet_message(self._ip, command)
-        successful = data["heos"]["result"] == 'success'
-        if "payload" in data:
-            return successful, data["heos"]["message"], data["payload"]
-        else:
-            return successful, data["heos"]["message"], {}
-
-    async def refresh(self):
-        successful, message, payload = await self._send_telnet_message(
-            b' heos://browse/get_source_info?sid=' + str(self.sid).encode())
-
-        if successful:
-            self.available = payload[0]["available"]
-
-    async def get_search_criteria(self):
-        successful, message, payload = await self._send_telnet_message(
-            b'heos://browse/get_search_criteria?sid=' + str(self.sid).encode()
-        )
-
-        if successful:
-            self.search_criteria = list()
-            for criteria in payload:
-                self.search_criteria.append(HeosSearchCriteria(self._ip, self.sid, criteria))
-
-
-    async def get_root_container(self):
-        successful, message, payload = await self._send_telnet_message(
-            b' heos://browse/browse?sid=' + str(self.sid).encode())
-
-        if successful:
-            self.container = list()
-            for container in payload:
-                new_container = HeosSourceContainer(self._ip, self.sid, container)
-                self.container.append(new_container)
-                await new_container.browse(0)
-                await new_container.get_search_criteria()
-
-
 class HeosDeviceManager:
     _locks: typing.Dict[str, asyncio.Lock] = dict()
 
     def __init__(self):
         self._all_devices: typing.Dict[str, HeosDevice] = dict()
-        self._all_sources: typing.Dict[int, HeosSource] = dict()
+        self._all_sources: typing.Dict[int, heos.source.HeosSource] = dict()
         self.watch_enabled = False
         self.event_telnet_connection: telnetlib.Telnet
 
@@ -327,7 +207,7 @@ class HeosDeviceManager:
             data = await self.send_telnet_message(ip, b'heos://browse/get_music_sources')
             for source in data["payload"]:
                 if not source["sid"] in self._all_sources:
-                    new_source = HeosSource(ip, source)
+                    new_source = heos.source.HeosSource(ip, None, source)
                     self._all_sources[new_source.sid] = new_source
                     await new_source.initialize()
 
@@ -441,8 +321,17 @@ class HeosDeviceManager:
             if device.name == name:
                 return device
 
-    def get_all_sources(self) -> typing.List[HeosSource]:
+    def get_all_sources(self) -> typing.List[heos.source.HeosSource]:
         if not self._all_sources:
             return list()
 
         return list(self._all_sources.values())
+
+    def get_source_by_id(self, sid: int) -> heos.source.HeosSource:
+        if not self._all_sources:
+            return None
+
+        for container in self._all_sources.values():  # type: heos.source.HeosSource
+            found = container.get_source(sid)
+            if found:
+                return found
