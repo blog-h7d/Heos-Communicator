@@ -1,66 +1,81 @@
-$(window).load(function(){
+$(window).load(function () {
 
-    Vue.filter('exists', function(obj){
-                console.log(obj);
-                return obj != Null
-            })
+    // eslint-disable-next-line no-undef
+    let TreeList = httpVueLoader('./templates/TreeList.vue')
 
+    Vue.component('TreeList',
+        {
+            template: TreeList
+        }
+    )
+
+    Vue.filter('exists', function (obj) {
+        console.log(obj);
+        return obj != null;
+    })
+
+    // eslint-disable-next-line no-undef
     heos_app_ = new Vue({
         el: "#heosapp",
-        data:{
-            devices:[],
-            selected_device:{},
-            device_selected:false
+        components:{
+            'tree-list': TreeList
         },
-        methods:{
-          refresh: async function(){
-            this.device_selected = false;
-            this.selected_device = {}
+        data: {
+            devices: [],
+            sources: [],
+            selected_device: {},
+            device_selected: false
+        },
+        async mounted() {
+            await this.refresh();
+        },
+        methods: {
+            refresh: async function () {
+                this.device_selected = false;
+                this.selected_device = {}
 
-            response = await fetch('/heos_devices/');
-            data = await response.json();
-            this.devices = data;
-          },
-          select: async function(device){
-            this.selected_device = device;
-            this.devices.forEach(element => element.selected = false)
-            device.selected = true;
-            this.device_selected = true;
-          },
-          get_device: function(pid){
-            return this.devices.find(element => element.pid == pid)
-          },
-          update_device: async function(pid)
-          {
-            // TODO better implementation
-            await this.refresh();
-            this.select(this.get_device(pid));
-          }
-        },
-        async mounted(){
-            await this.refresh();
+                let response = await fetch('/heos_devices/');
+                let data = await response.json();
+                this.devices = data;
+
+                response = await fetch('/heos_sources/');
+                data = await response.json();
+                this.sources = data;
+
+            },
+            select: async function (device) {
+                this.selected_device = device;
+                this.devices.forEach(element => element.selected = false)
+                device.selected = true;
+                this.device_selected = true;
+            },
+            get_device: function (pid) {
+                return this.devices.find(element => element.pid == pid)
+            },
+            update_device: async function (pid) {
+                // TODO better implementation
+                await this.refresh();
+                await this.select(this.get_device(pid));
+            }
         }
     })
 
 
-    es = new EventSource('/heos_events/');
+    let es = new EventSource('/heos_events/');
     es.onmessage = function (event) {
-        data = JSON.parse(event.data)
-        data_params = new URLSearchParams(data.message);
-        if(data['event'] == 'player_volume_changed')
-        {
-            device = heos_app_.get_device(data_params.get('pid'))
+        let data = JSON.parse(event.data)
+        let data_params = new URLSearchParams(data.message);
+        if (data['event'] == 'player_volume_changed') {
+            let device = heos_app_.get_device(data_params.get('pid'))
             device.volume = data_params.get('level')
         }
-        if(data.event == 'player_now_playing_changed')
-        {
+        if (data.event == 'player_now_playing_changed') {
             heos_app_.update_device(data_params.get('pid')).then()
         }
-        if(data['event'] == 'player_now_playing_progress')
-        {
-            device = heos_app_.get_device(data_params.get('pid'))
-            //device.now_playing.cur_pos = data_params.get('cur_pos')
-            //device.now_playing.duration = data_params.get('duration')
+        if (data['event'] == 'player_now_playing_progress') {
+            let device = heos_app_.get_device(data_params.get('pid'))
+            device.now_playing.cur_pos = data_params.get('cur_pos')
+            device.now_playing.duration = data_params.get('duration')
         }
     }
 })

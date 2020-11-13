@@ -81,6 +81,7 @@ body
     width: calc(50% - 20px);
     height: calc(100% - 20px);
     overflow: hidden;
+    float: left;
 }
 
 #now_playing
@@ -103,6 +104,16 @@ body
 
 #play_actions
 {
+}
+
+#sources
+{
+    margin: 10px;
+    border: 2px solid black;
+    border-radius: 5px;
+    width: calc(50% - 20px);
+    height: calc(100% - 20px);
+    overflow: hidden;
 }
 
 
