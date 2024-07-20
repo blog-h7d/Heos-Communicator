@@ -143,6 +143,13 @@ async def get_heos_device(name):
     else:
         return b'Device not found.', 404
 
+@app.route('/heos_device/<name>/volume/')
+async def get_volume(name):
+    device = heos_manager.get_device_by_name(name)
+    if not device:
+        return b'Device not found.', 404
+
+    return str(device.volume), 200
 
 @app.route('/heos_device/<name>/<command>/')
 @app.route('/heos_device/<name>/<command>/<param>/')
